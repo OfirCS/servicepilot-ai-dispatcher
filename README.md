@@ -60,6 +60,7 @@ This is the easiest outcome to sell because the before/after metric is concrete:
 Included now:
 - React/Vite operator dashboard
 - Live missed-call recovery simulator
+- Outbound lead-finder marketing agent (real OpenStreetMap data, no API keys)
 - Deterministic AI intake classifier for demo mode
 - Twilio Voice webhook route
 - Twilio call-status recovery route
@@ -118,6 +119,19 @@ We are building the AI front desk for local emergency service businesses. The fi
 
 The market is large because every service vertical has the same problem: paid leads and organic calls are wasted when no one answers. We start with garage doors because urgency and revenue are obvious, then expand across trades.
 
+### Lead Finder (Outbound Marketing Agent)
+
+Missed-call recovery is the inbound wedge. The Lead Finder is the outbound side: an agent that goes and finds new customers for the operator.
+
+Open the **Lead finder** tab, type a service area (for example `North York, Toronto`), and run the agent. It:
+
+1. Geocodes the area with OpenStreetMap Nominatim.
+2. Scans OpenStreetMap Overpass for real local businesses that own serviceable doors — auto shops, dealerships, car washes, self-storage, warehouses, fire stations, and trade suppliers.
+3. Scores each business for fit, estimates door count and annual account value, and drafts a ready-to-send first message.
+4. Lets the operator push any prospect into the same lead queue, booking, and review loop with one click.
+
+This uses **real, free, keyless data** (OpenStreetMap), so it works in the browser during `npm run dev` and on Netlify without configuration. The server route `/api/marketing/prospect` can additionally persist prospects to Supabase. If the live source is ever unreachable, the agent falls back to a deterministic sample set so the demo never breaks.
+
 ## Architecture
 
 ```text
@@ -145,6 +159,7 @@ Dashboard metrics
 - Database: Supabase Postgres
 - Phone/SMS: Twilio
 - AI: deterministic demo classifier now, OpenAI-ready via `OPENAI_API_KEY`
+- Lead sourcing: OpenStreetMap (Nominatim geocoding + Overpass), free and keyless
 - Workbook: Excel model for YC/demo metrics
 
 ## API Routes
@@ -155,6 +170,7 @@ Dashboard metrics
 | `POST` | `/api/twilio/call-status` | Trigger missed-call recovery SMS |
 | `POST` | `/api/twilio/inbound-sms` | Classify customer replies and return Twilio XML |
 | `POST` | `/api/ai/intake` | Classify issue, urgency, missing fields, and reply |
+| `POST` | `/api/marketing/prospect` | Find local commercial door accounts as outbound leads |
 | `POST` | `/api/calendar/book` | Create a scheduled job |
 | `POST` | `/api/followups/review` | Send review request SMS |
 | `GET` | `/api/dashboard/metrics` | Return dashboard metrics |
@@ -248,6 +264,7 @@ netlify/functions
 The app includes:
 - branded ServicePilot mark
 - live missed-call simulator
+- outbound lead-finder agent (real OpenStreetMap data)
 - operator dashboard
 - YC proof surface
 - setup checklist

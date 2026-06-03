@@ -1,25 +1,33 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { motion } from 'framer-motion'
 import {
   Bot,
+  Building2,
   Calendar,
   CheckCircle2,
   ClipboardList,
   Clock,
   Database,
+  ExternalLink,
   FileText,
   Gauge,
   Headphones,
   KeyRound,
+  Loader2,
   MapPin,
   MessageSquare,
   PhoneCall,
   Play,
+  Plus,
+  Radar,
   RefreshCw,
+  Search,
+  Send,
   Settings,
   ShieldCheck,
   Sparkles,
   Star,
+  TrendingUp,
   Truck,
   Webhook,
   Zap,
@@ -37,9 +45,10 @@ import {
   type DemoLead,
   type LeadStatus,
 } from './lib/servicepilot'
+import { findProspects, type Prospect } from './lib/leadfinder'
 import './App.css'
 
-type ViewKey = 'Command' | 'Demo' | 'Automations' | 'YC' | 'Settings'
+type ViewKey = 'Command' | 'Demo' | 'Marketing' | 'Automations' | 'YC' | 'Settings'
 
 type ApiLog = {
   id: string
@@ -60,6 +69,7 @@ type Integration = {
 const navItems: { id: ViewKey; label: string; icon: LucideIcon }[] = [
   { id: 'Command', label: 'Command', icon: Gauge },
   { id: 'Demo', label: 'Live demo', icon: Play },
+  { id: 'Marketing', label: 'Lead finder', icon: Radar },
   { id: 'Automations', label: 'Automations', icon: Bot },
   { id: 'YC', label: 'YC proof', icon: Sparkles },
   { id: 'Settings', label: 'Setup', icon: Settings },
@@ -101,6 +111,7 @@ const endpointRows = [
   ['POST', '/api/twilio/call-status', 'Recover no-answer/busy/failed calls by SMS'],
   ['POST', '/api/twilio/inbound-sms', 'Qualify inbound SMS and return Twilio XML'],
   ['POST', '/api/ai/intake', 'Classify issue, urgency, missing fields, and reply'],
+  ['POST', '/api/marketing/prospect', 'Find local commercial door accounts as outbound leads'],
   ['POST', '/api/calendar/book', 'Create scheduled job from qualified lead'],
   ['POST', '/api/followups/review', 'Send Google review request after completion'],
   ['GET', '/api/dashboard/metrics', 'Return launch metrics for dashboard'],
@@ -170,6 +181,12 @@ function App() {
   )
   const [demoStep, setDemoStep] = useState(2)
   const [integrationKeys, setIntegrationKeys] = useState<Record<string, string>>({})
+  const [prospectArea, setProspectArea] = useState(demoCompany.serviceArea)
+  const [prospects, setProspects] = useState<Prospect[]>([])
+  const [prospectStatus, setProspectStatus] = useState<'idle' | 'loading' | 'done'>('idle')
+  const [prospectSource, setProspectSource] = useState<'openstreetmap' | 'demo' | null>(null)
+  const [prospectNote, setProspectNote] = useState<string | null>(null)
+  const [addedProspects, setAddedProspects] = useState<Record<string, true>>({})
 
   const selectedLead = leads.find((lead) => lead.id === selectedLeadId) ?? leads[0]
   const recoveredRevenue = leads
@@ -257,6 +274,53 @@ function App() {
     addLog('POST', '/api/followups/review', '200 JSON', `Review request queued for ${selectedLead.customerName}`)
   }
 
+  async function runProspectSearch() {
+    setProspectStatus('loading')
+    setProspectNote(null)
+    addLog('POST', '/api/marketing/prospect', '200 JSON', `Scanning ${prospectArea} for door accounts`)
+    const result = await findProspects(prospectArea)
+    setProspects(result.prospects)
+    setProspectSource(result.source)
+    setProspectNote(result.note ?? null)
+    setProspectStatus('done')
+    addLog(
+      'POST',
+      '/api/marketing/prospect',
+      '200 JSON',
+      `${result.prospects.length} prospects from ${result.source === 'openstreetmap' ? 'OpenStreetMap' : 'sample set'}`,
+    )
+  }
+
+  function addProspectToPipeline(prospect: Prospect) {
+    if (addedProspects[prospect.id]) return
+    const lead: DemoLead = {
+      id: `LD-${Math.floor(4000 + Math.random() * 5999)}`,
+      customerName: prospect.name,
+      customerPhone: prospect.phone ?? 'No number — visit/email',
+      city: prospect.city || prospectArea.split(',')[0] || prospectArea,
+      issueType: prospect.category,
+      urgency: 'quote',
+      status: 'captured',
+      source: 'outbound',
+      estimatedValue: prospect.estimatedValue,
+      carTrapped: false,
+      preferredTime: 'Outbound — schedule intro call',
+      summary: `${prospect.category}. ${prospect.signal}`,
+      receivedAt: 'just now',
+      lastMessage: prospect.outreach,
+      timeline: [
+        'Sourced by ServicePilot lead finder.',
+        `Fit score ${prospect.score}/100 · ${prospect.doorEstimate}.`,
+        'Outreach drafted and ready to send.',
+      ],
+    }
+    setLeads((current) => [lead, ...current])
+    setSelectedLeadId(lead.id)
+    setAddedProspects((current) => ({ ...current, [prospect.id]: true }))
+    setMetrics((current) => ({ ...current, newLeads: current.newLeads + 1 }))
+    addLog('POST', '/api/leads', '201 JSON', `${prospect.name} added to pipeline (${money(prospect.estimatedValue)})`)
+  }
+
   function renderView() {
     switch (activeView) {
       case 'Demo':
@@ -266,6 +330,20 @@ function App() {
             setDemoMessage={setDemoMessage}
             runMissedCallDemo={runMissedCallDemo}
             demoStep={demoStep}
+          />
+        )
+      case 'Marketing':
+        return (
+          <MarketingView
+            prospectArea={prospectArea}
+            setProspectArea={setProspectArea}
+            prospects={prospects}
+            prospectStatus={prospectStatus}
+            prospectSource={prospectSource}
+            prospectNote={prospectNote}
+            addedProspects={addedProspects}
+            runProspectSearch={runProspectSearch}
+            addProspectToPipeline={addProspectToPipeline}
           />
         )
       case 'Automations':
@@ -648,6 +726,208 @@ function DemoView({
               <p>{item}</p>
             </div>
           ))}
+        </div>
+      </section>
+    </motion.main>
+  )
+}
+
+const segmentIcon: Record<Prospect['segment'], LucideIcon> = {
+  fire_station: ShieldCheck,
+  storage: Database,
+  dealership: Truck,
+  warehouse: Building2,
+  auto_repair: Settings,
+  home_improvement: ClipboardList,
+  fuel: Zap,
+  commercial: Building2,
+}
+
+function MarketingView({
+  prospectArea,
+  setProspectArea,
+  prospects,
+  prospectStatus,
+  prospectSource,
+  prospectNote,
+  addedProspects,
+  runProspectSearch,
+  addProspectToPipeline,
+}: {
+  prospectArea: string
+  setProspectArea: (value: string) => void
+  prospects: Prospect[]
+  prospectStatus: 'idle' | 'loading' | 'done'
+  prospectSource: 'openstreetmap' | 'demo' | null
+  prospectNote: string | null
+  addedProspects: Record<string, true>
+  runProspectSearch: () => void
+  addProspectToPipeline: (prospect: Prospect) => void
+}) {
+  const pipelineValue = prospects.reduce((sum, prospect) => sum + prospect.estimatedValue, 0)
+  const loading = prospectStatus === 'loading'
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    if (!loading) runProspectSearch()
+  }
+
+  return (
+    <motion.main className="single-surface" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <section className="panel lead-finder">
+        <div className="section-head">
+          <div>
+            <span className="eyeline">Outbound marketing agent</span>
+            <h2>Find local door accounts</h2>
+          </div>
+          <StatusChip tone="good">Live data</StatusChip>
+        </div>
+
+        <form className="finder-form" onSubmit={submit}>
+          <label className="finder-input">
+            <MapPin size={16} aria-hidden="true" />
+            <input
+              value={prospectArea}
+              onChange={(event) => setProspectArea(event.target.value)}
+              placeholder="City or service area, e.g. North York, Toronto"
+              aria-label="Service area to prospect"
+            />
+          </label>
+          <button type="submit" className="primary-button" disabled={loading}>
+            {loading ? <Loader2 size={16} className="spin" aria-hidden="true" /> : <Search size={16} aria-hidden="true" />}
+            {loading ? 'Scanning…' : 'Find leads'}
+          </button>
+        </form>
+
+        <p className="finder-hint">
+          The agent geocodes your area and scans OpenStreetMap for real businesses that own overhead, bay, and roll-up
+          doors — auto shops, dealerships, storage, warehouses, and fire stations — then scores each as an outbound
+          account and drafts the first message.
+        </p>
+
+        {prospectStatus === 'done' && (
+          <div className="finder-summary">
+            <div>
+              <span>Prospects found</span>
+              <strong>{prospects.length}</strong>
+            </div>
+            <div>
+              <span>Pipeline value</span>
+              <strong>{money(pipelineValue)}</strong>
+            </div>
+            <div>
+              <span>Source</span>
+              <strong>{prospectSource === 'openstreetmap' ? 'OpenStreetMap' : 'Sample set'}</strong>
+            </div>
+          </div>
+        )}
+
+        {prospectNote && <p className="finder-note">{prospectNote}</p>}
+
+        {prospectStatus === 'idle' && (
+          <div className="finder-empty">
+            <Radar size={26} aria-hidden="true" />
+            <p>Enter a service area and run the agent to surface real commercial door accounts near you.</p>
+          </div>
+        )}
+
+        {loading && (
+          <div className="finder-empty">
+            <Loader2 size={26} className="spin" aria-hidden="true" />
+            <p>Scanning {prospectArea} for businesses with garage, bay, and loading-dock doors…</p>
+          </div>
+        )}
+
+        {prospectStatus === 'done' && prospects.length > 0 && (
+          <div className="prospect-list">
+            {prospects.map((prospect) => {
+              const Icon = segmentIcon[prospect.segment] ?? Building2
+              const added = Boolean(addedProspects[prospect.id])
+              return (
+                <article className="prospect-card" key={prospect.id}>
+                  <div className="prospect-head">
+                    <div className="prospect-id">
+                      <Icon size={17} aria-hidden="true" />
+                      <div>
+                        <strong>{prospect.name}</strong>
+                        <small>
+                          {prospect.category}
+                          {prospect.address ? ` · ${prospect.address}` : ''}
+                          {prospect.city ? `, ${prospect.city}` : ''}
+                        </small>
+                      </div>
+                    </div>
+                    <span className="score-badge" aria-label={`Fit score ${prospect.score} of 100`}>
+                      <TrendingUp size={13} aria-hidden="true" />
+                      {prospect.score}
+                    </span>
+                  </div>
+
+                  <div className="prospect-meta">
+                    <span>{prospect.doorEstimate}</span>
+                    <span>{money(prospect.estimatedValue)}/yr potential</span>
+                  </div>
+
+                  <p className="prospect-signal">{prospect.signal}</p>
+
+                  <div className="outreach-box">
+                    <span className="eyeline">Drafted outreach</span>
+                    <p>{prospect.outreach}</p>
+                  </div>
+
+                  <div className="prospect-actions">
+                    <button
+                      type="button"
+                      className={added ? 'ghost-button' : 'primary-button'}
+                      onClick={() => addProspectToPipeline(prospect)}
+                      disabled={added}
+                    >
+                      {added ? <CheckCircle2 size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
+                      {added ? 'In pipeline' : 'Add to pipeline'}
+                    </button>
+                    {prospect.website && (
+                      <a className="ghost-button" href={prospect.website} target="_blank" rel="noreferrer">
+                        <ExternalLink size={15} aria-hidden="true" />
+                        Visit site
+                      </a>
+                    )}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
+
+        {prospectStatus === 'done' && prospects.length === 0 && (
+          <div className="finder-empty">
+            <Search size={26} aria-hidden="true" />
+            <p>No commercial door accounts found here. Try a larger city or a nearby area.</p>
+          </div>
+        )}
+      </section>
+
+      <section className="panel">
+        <PanelTitle icon={Send} title="How the agent works" action="real source" />
+        <div className="stage-map">
+          {[
+            { title: 'Geocode the area', detail: 'Nominatim turns your service area into a precise map location.' },
+            { title: 'Scan for door accounts', detail: 'Overpass finds real businesses with overhead, bay, and roll-up doors nearby.' },
+            { title: 'Score & draft', detail: 'Each prospect is scored for fit and given a ready-to-send first message.' },
+            { title: 'Add to pipeline', detail: 'One click pushes the account into your lead queue to work like any other.' },
+          ].map((step, index) => (
+            <div key={step.title} className="stage active">
+              <span>{index + 1}</span>
+              <div>
+                <strong>{step.title}</strong>
+                <p>{step.detail}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="guardrail-list">
+          <p>Targets commercial accounts that own real, serviceable doors.</p>
+          <p>No API keys required — runs on free OpenStreetMap data.</p>
+          <p>Outbound leads flow into the same queue, booking, and review loop.</p>
         </div>
       </section>
     </motion.main>

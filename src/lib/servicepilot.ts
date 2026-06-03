@@ -1,6 +1,6 @@
 export type LeadUrgency = 'emergency' | 'same_day' | 'normal' | 'quote'
 export type LeadStatus = 'captured' | 'qualifying' | 'qualified' | 'booked' | 'completed' | 'lost'
-export type LeadSource = 'missed_call' | 'inbound_sms' | 'website' | 'manual'
+export type LeadSource = 'missed_call' | 'inbound_sms' | 'website' | 'manual' | 'outbound'
 
 export type DemoLead = {
   id: string
