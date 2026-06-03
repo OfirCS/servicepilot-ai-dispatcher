@@ -184,7 +184,8 @@ function App() {
   }, [metrics])
 
   function addLog(method: string, path: string, status: string, detail: string) {
-    setApiLogs((current) => [{ id: `log-${Date.now()}`, method, path, status, detail }, ...current].slice(0, 7))
+    const id = `log-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    setApiLogs((current) => [{ id, method, path, status, detail }, ...current].slice(0, 7))
   }
 
   function runMissedCallDemo() {
