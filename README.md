@@ -1,8 +1,20 @@
 # ServicePilot
 
-AI Growth Dispatcher for garage door and locksmith companies.
+The AI that runs your front desk — for small service businesses.
 
-ServicePilot recovers missed calls, qualifies customers over SMS, sends clean job summaries to owners, books appointments, and follows up for Google reviews. The first wedge is garage door companies because missed emergency calls are high-intent, easy to measure, and often worth hundreds of dollars.
+ServicePilot is an **agentic AI workforce** for garage door and locksmith companies. A team of AI agents answers missed calls, qualifies customers over SMS, books appointments, finds new commercial accounts, and follows up for Google reviews — autonomously. Your team stays in control and only steps in when an agent asks for approval. The first wedge is garage door companies because missed emergency calls are high-intent, easy to measure, and often worth hundreds of dollars.
+
+### The AI workforce
+
+| Agent | Runs | Does |
+|---|---|---|
+| Riley | Reception | Recovers missed calls with an instant text-back |
+| Iris | Intake | Qualifies the job over SMS (issue, urgency, location, photos) |
+| Dex | Dispatch | Books jobs and schedules the technician window |
+| Pia | Prospecting | Finds new local commercial door accounts to win |
+| Remy | Reviews | Requests a Google review after the job is done |
+
+The dashboard opens on the **AI workforce** home: every agent's live status and current task, a **"Needs your approval"** inbox (human-in-the-loop), and a feed of the autonomous actions agents have taken.
 
 ![ServicePilot dashboard](docs/screenshots/servicepilot-yc-desktop.png)
 

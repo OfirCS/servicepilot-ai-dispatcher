@@ -1,6 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { motion } from 'framer-motion'
 import {
+  Activity,
+  ArrowRight,
   Bot,
   Building2,
   Calendar,
@@ -12,6 +14,7 @@ import {
   FileText,
   Gauge,
   Headphones,
+  Inbox,
   KeyRound,
   Loader2,
   MapPin,
@@ -29,18 +32,24 @@ import {
   Star,
   TrendingUp,
   Truck,
+  Users,
   Webhook,
   Zap,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import servicepilotMark from './assets/servicepilot-mark.png'
 import {
+  agents,
   classifyIntake,
+  demoActivity,
+  demoApprovals,
   demoCompany,
   demoEvents,
   demoLeads,
   demoMetrics,
   money,
+  type Agent,
+  type Approval,
   type DashboardMetrics,
   type DemoLead,
   type LeadStatus,
@@ -48,7 +57,7 @@ import {
 import { findProspects, type Prospect } from './lib/leadfinder'
 import './App.css'
 
-type ViewKey = 'Command' | 'Demo' | 'Marketing' | 'Automations' | 'YC' | 'Settings'
+type ViewKey = 'Agents' | 'Command' | 'Demo' | 'Marketing' | 'Automations' | 'YC' | 'Settings'
 
 type ApiLog = {
   id: string
@@ -67,13 +76,28 @@ type Integration = {
 }
 
 const navItems: { id: ViewKey; label: string; icon: LucideIcon }[] = [
-  { id: 'Command', label: 'Command', icon: Gauge },
+  { id: 'Agents', label: 'AI workforce', icon: Users },
+  { id: 'Command', label: 'Lead queue', icon: Gauge },
   { id: 'Demo', label: 'Live demo', icon: Play },
   { id: 'Marketing', label: 'Lead finder', icon: Radar },
   { id: 'Automations', label: 'Automations', icon: Bot },
   { id: 'YC', label: 'YC proof', icon: Sparkles },
   { id: 'Settings', label: 'Setup', icon: Settings },
 ]
+
+const agentIcon: Record<Agent['id'], LucideIcon> = {
+  reception: PhoneCall,
+  intake: MessageSquare,
+  dispatch: Calendar,
+  prospector: Radar,
+  reviews: Star,
+}
+
+const agentStatusLabel: Record<Agent['status'], string> = {
+  working: 'Working',
+  idle: 'Idle',
+  needs_you: 'Needs you',
+}
 
 const integrations: Integration[] = [
   {
@@ -171,7 +195,7 @@ function statusLabel(status: LeadStatus) {
 }
 
 function App() {
-  const [activeView, setActiveView] = useState<ViewKey>('Command')
+  const [activeView, setActiveView] = useState<ViewKey>('Agents')
   const [leads, setLeads] = useState<DemoLead[]>(demoLeads)
   const [selectedLeadId, setSelectedLeadId] = useState(demoLeads[0].id)
   const [metrics, setMetrics] = useState<DashboardMetrics>(demoMetrics)
@@ -187,6 +211,7 @@ function App() {
   const [prospectSource, setProspectSource] = useState<'openstreetmap' | 'demo' | null>(null)
   const [prospectNote, setProspectNote] = useState<string | null>(null)
   const [addedProspects, setAddedProspects] = useState<Record<string, true>>({})
+  const [approvals, setApprovals] = useState<Approval[]>(demoApprovals)
 
   const selectedLead = leads.find((lead) => lead.id === selectedLeadId) ?? leads[0]
   const recoveredRevenue = leads
@@ -321,8 +346,28 @@ function App() {
     addLog('POST', '/api/leads', '201 JSON', `${prospect.name} added to pipeline (${money(prospect.estimatedValue)})`)
   }
 
+  function approveException(approval: Approval) {
+    setApprovals((current) => current.filter((item) => item.id !== approval.id))
+    if (approval.agentId === 'dispatch') {
+      setMetrics((current) => ({ ...current, jobsBooked: current.jobsBooked + 1 }))
+    }
+    if (approval.agentId === 'reviews') {
+      setMetrics((current) => ({ ...current, reviewsRequested: current.reviewsRequested + 1 }))
+    }
+    addLog('POST', '/api/agents/approve', '200 JSON', `${approval.agent}: ${approval.title}`)
+  }
+
   function renderView() {
     switch (activeView) {
+      case 'Agents':
+        return (
+          <AgentsView
+            approvals={approvals}
+            approveException={approveException}
+            goToDemo={() => setActiveView('Demo')}
+            goToMarketing={() => setActiveView('Marketing')}
+          />
+        )
       case 'Demo':
         return (
           <DemoView
@@ -411,8 +456,8 @@ function App() {
         </nav>
 
         <div className="side-proof">
-          <span className="eyeline">Launch wedge</span>
-          <strong>Recover missed garage-door calls before competitors call back.</strong>
+          <span className="eyeline">Your AI workforce</span>
+          <strong>Five agents run the front desk so your crew stays on the tools.</strong>
           <div className="meter">
             <span style={{ width: `${Math.min(metrics.closeRate, 100)}%` }} />
           </div>
@@ -423,8 +468,12 @@ function App() {
       <div className="main">
         <header className="topbar">
           <div>
-            <span className="eyeline">{demoCompany.name}</span>
-            <h1>AI Growth Dispatcher for Garage Door Companies</h1>
+            <span className="eyeline">{demoCompany.name} · AI front desk</span>
+            <h1>The AI that runs your front desk</h1>
+            <p className="hero-sub">
+              ServicePilot answers missed calls, qualifies customers, books jobs, finds new accounts, and chases
+              reviews — autonomously. Your team stays in control and only steps in when an agent asks.
+            </p>
           </div>
           <div className="top-actions">
             <button type="button" className="ghost-button" onClick={() => setActiveView('Settings')}>
@@ -433,7 +482,7 @@ function App() {
             </button>
             <button type="button" className="primary-button" onClick={() => setActiveView('Demo')}>
               <Play size={16} aria-hidden="true" />
-              Run live demo
+              Watch agents work
             </button>
           </div>
         </header>
@@ -477,6 +526,148 @@ function PanelTitle({ icon: Icon, title, action }: { icon: LucideIcon; title: st
 
 function StatusChip({ children, tone }: { children: string; tone: 'good' | 'warn' | 'danger' | 'neutral' }) {
   return <span className={`status-chip ${tone}`}>{children}</span>
+}
+
+function AgentsView({
+  approvals,
+  approveException,
+  goToDemo,
+  goToMarketing,
+}: {
+  approvals: Approval[]
+  approveException: (approval: Approval) => void
+  goToDemo: () => void
+  goToMarketing: () => void
+}) {
+  const activeCount = agents.filter((agent) => agent.status !== 'idle').length
+  const handledToday = agents.reduce((sum, agent) => sum + agent.doneToday, 0)
+
+  return (
+    <motion.main
+      className="agents-surface"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+    >
+      <section className="panel workforce">
+        <div className="section-head">
+          <div>
+            <span className="eyeline">Always on · {handledToday} tasks handled today</span>
+            <h2>Your AI workforce</h2>
+          </div>
+          <StatusChip tone="good">{`${activeCount} active now`}</StatusChip>
+        </div>
+
+        <div className="agent-grid">
+          {agents.map((agent) => {
+            const Icon = agentIcon[agent.id]
+            return (
+              <article className="agent-card" key={agent.id}>
+                <div className="agent-card-head">
+                  <div className="agent-identity">
+                    <div className="agent-avatar">
+                      <Icon size={18} aria-hidden="true" />
+                    </div>
+                    <div>
+                      <strong>{agent.name}</strong>
+                      <small>{agent.role}</small>
+                    </div>
+                  </div>
+                  <span className={`agent-pill ${agent.status}`}>
+                    <span className="dot" aria-hidden="true" />
+                    {agentStatusLabel[agent.status]}
+                  </span>
+                </div>
+                <p className="agent-activity">{agent.activity}</p>
+                <div className="agent-foot">
+                  <CheckCircle2 size={14} aria-hidden="true" />
+                  <span>
+                    <strong>{agent.doneToday}</strong> {agent.doneLabel} today
+                  </span>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+
+        <div className="agent-cta">
+          <button type="button" className="primary-button" onClick={goToDemo}>
+            <Play size={16} aria-hidden="true" />
+            Watch an agent work
+          </button>
+          <button type="button" className="ghost-button" onClick={goToMarketing}>
+            <Radar size={16} aria-hidden="true" />
+            Send the prospector out
+            <ArrowRight size={15} aria-hidden="true" />
+          </button>
+        </div>
+      </section>
+
+      <div className="agents-aside">
+        <section className="panel">
+          <PanelTitle icon={Inbox} title="Needs your approval" action={`${approvals.length} waiting`} />
+          {approvals.length === 0 ? (
+            <div className="approval-empty">
+              <CheckCircle2 size={26} aria-hidden="true" />
+              <p>All clear. Your agents have nothing waiting on you right now.</p>
+            </div>
+          ) : (
+            <div className="approval-list">
+              {approvals.map((approval) => {
+                const Icon = agentIcon[approval.agentId]
+                return (
+                  <div className="approval-row" key={approval.id}>
+                    <div className="approval-top">
+                      <div className="agent-avatar">
+                        <Icon size={15} aria-hidden="true" />
+                      </div>
+                      <div className="approval-who">
+                        <strong>{approval.agent}</strong>
+                        <small>{approval.agentRole}</small>
+                      </div>
+                    </div>
+                    <div>
+                      <strong className="approval-title">{approval.title}</strong>
+                      <p>{approval.detail}</p>
+                    </div>
+                    <div className="approval-actions">
+                      <button type="button" className="primary-button" onClick={() => approveException(approval)}>
+                        <CheckCircle2 size={14} aria-hidden="true" />
+                        {approval.action}
+                      </button>
+                      <button type="button" className="ghost-button" onClick={() => approveException(approval)}>
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="panel">
+          <PanelTitle icon={Activity} title="Autonomous activity" action="live" />
+          <div className="activity-list">
+            {demoActivity.map((event) => {
+              const Icon = agentIcon[event.agentId]
+              return (
+                <div className="activity-row" key={event.id}>
+                  <div className="agent-avatar">
+                    <Icon size={14} aria-hidden="true" />
+                  </div>
+                  <p>
+                    <b>{event.agent}</b> {event.text}
+                  </p>
+                  <time>{event.time}</time>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      </div>
+    </motion.main>
+  )
 }
 
 function CommandView({

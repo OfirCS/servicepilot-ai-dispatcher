@@ -1,12 +1,15 @@
 :root {
-  --bg: #f6f7f5;
-  --text: #17201b;
-  --soft-text: #425047;
-  --muted: #748077;
-  --line: #dde3de;
-  --accent: #a9f5c8;
-  --accent-strong: #2e7d4f;
-  --danger: #b42318;
+  --bg: #f5f1e8;
+  --surface: #fffdf9;
+  --text: #1b1a16;
+  --soft-text: #514c41;
+  --muted: #8c8576;
+  --line: #e7e1d4;
+  --accent: #bff0d3;
+  --accent-strong: #1f7a4d;
+  --accent-ink: #103a25;
+  --ink: #1d1b16;
+  --danger: #b4452f;
   --warn: #946200;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",

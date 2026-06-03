@@ -171,6 +171,124 @@ export const demoEvents: DemoEvent[] = [
   },
 ]
 
+export type AgentStatus = 'working' | 'idle' | 'needs_you'
+
+export type Agent = {
+  id: 'reception' | 'intake' | 'dispatch' | 'prospector' | 'reviews'
+  name: string
+  role: string
+  status: AgentStatus
+  activity: string
+  doneToday: number
+  doneLabel: string
+}
+
+export type Approval = {
+  id: string
+  agent: string
+  agentRole: string
+  agentId: Agent['id']
+  title: string
+  detail: string
+  action: string
+}
+
+export type AgentActivity = {
+  id: string
+  agent: string
+  agentId: Agent['id']
+  text: string
+  time: string
+}
+
+// The AI workforce. Each agent runs one part of the front desk autonomously
+// and only hands work back to a human when something needs approval.
+export const agents: Agent[] = [
+  {
+    id: 'reception',
+    name: 'Riley',
+    role: 'Reception agent',
+    status: 'working',
+    activity: 'Recovering a missed call from a North York customer.',
+    doneToday: 6,
+    doneLabel: 'calls recovered',
+  },
+  {
+    id: 'intake',
+    name: 'Iris',
+    role: 'Intake agent',
+    status: 'needs_you',
+    activity: 'Qualified a stuck-door emergency — owner summary is ready for you.',
+    doneToday: 9,
+    doneLabel: 'leads qualified',
+  },
+  {
+    id: 'dispatch',
+    name: 'Dex',
+    role: 'Dispatch agent',
+    status: 'working',
+    activity: 'Booking a same-day window for a broken torsion spring.',
+    doneToday: 3,
+    doneLabel: 'jobs booked',
+  },
+  {
+    id: 'prospector',
+    name: 'Pia',
+    role: 'Prospecting agent',
+    status: 'idle',
+    activity: 'Ready to scan a new area for commercial door accounts.',
+    doneToday: 14,
+    doneLabel: 'accounts found',
+  },
+  {
+    id: 'reviews',
+    name: 'Remy',
+    role: 'Reviews agent',
+    status: 'working',
+    activity: 'Following up on a completed job for a Google review.',
+    doneToday: 5,
+    doneLabel: 'reviews requested',
+  },
+]
+
+export const demoApprovals: Approval[] = [
+  {
+    id: 'ap-1',
+    agent: 'Iris',
+    agentRole: 'Intake agent',
+    agentId: 'intake',
+    title: 'Send owner summary for David',
+    detail: 'Emergency — garage door stuck closed, car trapped in North York. $475 estimated.',
+    action: 'Approve & send',
+  },
+  {
+    id: 'ap-2',
+    agent: 'Dex',
+    agentRole: 'Dispatch agent',
+    agentId: 'dispatch',
+    title: 'Book Rachel Kim for 12:30–2:00',
+    detail: 'Broken torsion spring, quote accepted. Confirm the technician window.',
+    action: 'Approve booking',
+  },
+  {
+    id: 'ap-3',
+    agent: 'Pia',
+    agentRole: 'Prospecting agent',
+    agentId: 'prospector',
+    title: 'Add 6 new commercial accounts',
+    detail: 'High-fit storage and auto-shop door accounts found near Vaughan.',
+    action: 'Approve & add',
+  },
+]
+
+export const demoActivity: AgentActivity[] = [
+  { id: 'ev-1', agent: 'Riley', agentId: 'reception', text: 'Texted back a missed call in 38 seconds.', time: 'just now' },
+  { id: 'ev-2', agent: 'Iris', agentId: 'intake', text: 'Classified an opener issue as normal priority.', time: '2m ago' },
+  { id: 'ev-3', agent: 'Dex', agentId: 'dispatch', text: 'Booked a same-day job and texted the customer.', time: '14m ago' },
+  { id: 'ev-4', agent: 'Pia', agentId: 'prospector', text: 'Found 12 commercial door accounts in North York.', time: '31m ago' },
+  { id: 'ev-5', agent: 'Remy', agentId: 'reviews', text: 'Sent a Google review request to a finished job.', time: '1h ago' },
+]
+
 export function money(value: number) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
