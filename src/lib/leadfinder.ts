@@ -1,13 +1,12 @@
 import { demoCompany } from './servicepilot'
 
 export type ProspectSegment =
-  | 'fire_station'
-  | 'auto_repair'
+  | 'property_management'
   | 'dealership'
   | 'storage'
-  | 'warehouse'
-  | 'fuel'
-  | 'home_improvement'
+  | 'hotel'
+  | 'realtor'
+  | 'auto_repair'
   | 'commercial'
 
 export type Prospect = {
@@ -20,7 +19,7 @@ export type Prospect = {
   lat?: number
   lon?: number
   score: number
-  doorEstimate: string
+  volumeEstimate: string
   estimatedValue: number
   signal: string
   outreach: string
@@ -40,103 +39,91 @@ type SegmentConfig = {
   segment: ProspectSegment
   category: string
   score: number
-  doorEstimate: string
+  volumeEstimate: string
   estimatedValue: number
   signal: string
 }
 
-// Real commercial accounts a garage-door company can win. Every one of these
-// owns overhead, bay, roll-up, or loading-dock doors that need service.
+// Real local accounts a locksmith can win. Every one of these needs recurring
+// lock, key, or access work — not a one-off house call.
 const SEGMENTS: Record<ProspectSegment, SegmentConfig> = {
-  fire_station: {
-    segment: 'fire_station',
-    category: 'Fire station',
+  property_management: {
+    segment: 'property_management',
+    category: 'Property manager',
     score: 95,
-    doorEstimate: '3-8 apparatus bay doors',
+    volumeEstimate: 'Rekeys on every tenant turnover',
     estimatedValue: 4200,
-    signal: 'Apparatus bay doors cycle constantly and need certified maintenance contracts.',
-  },
-  storage: {
-    segment: 'storage',
-    category: 'Self-storage facility',
-    score: 92,
-    doorEstimate: '20+ roll-up doors',
-    estimatedValue: 3600,
-    signal: 'High roll-up door count means recurring repair and spring-replacement volume.',
+    signal: 'Units get rekeyed at every move-out — steady, repeatable work and a master-key contract.',
   },
   dealership: {
     segment: 'dealership',
     category: 'Car dealership',
-    score: 86,
-    doorEstimate: '4-10 showroom & service doors',
-    estimatedValue: 2600,
-    signal: 'Service drive and detailing bays depend on doors that cannot be down during hours.',
+    score: 90,
+    volumeEstimate: 'Key cutting & fob programming',
+    estimatedValue: 3200,
+    signal: 'Lost-key and duplicate-fob jobs are constant, and dealers pay well for fast turnaround.',
   },
-  warehouse: {
-    segment: 'warehouse',
-    category: 'Warehouse / industrial',
+  storage: {
+    segment: 'storage',
+    category: 'Self-storage facility',
+    score: 84,
+    volumeEstimate: 'Lock cut-offs & padlocks',
+    estimatedValue: 2400,
+    signal: 'Overlocks and abandoned-unit cut-offs come up weekly — easy recurring volume.',
+  },
+  hotel: {
+    segment: 'hotel',
+    category: 'Hotel / motel',
     score: 82,
-    doorEstimate: '4-12 loading-dock doors',
-    estimatedValue: 3000,
-    signal: 'Loading-dock doors are mission-critical and command priority service plans.',
+    volumeEstimate: 'Key control & rekeys',
+    estimatedValue: 2800,
+    signal: 'Guest-room and back-of-house locks need rekeys, restricted keyways, and fast service calls.',
+  },
+  realtor: {
+    segment: 'realtor',
+    category: 'Real estate office',
+    score: 78,
+    volumeEstimate: 'Rekeys at every closing',
+    estimatedValue: 1800,
+    signal: 'New owners want the locks changed on closing day — a referral pipeline to their clients.',
   },
   auto_repair: {
     segment: 'auto_repair',
     category: 'Auto repair shop',
-    score: 84,
-    doorEstimate: '2-6 bay doors',
-    estimatedValue: 1800,
-    signal: 'Bay doors open hundreds of times a week — high wear, easy same-day upsell.',
-  },
-  home_improvement: {
-    segment: 'home_improvement',
-    category: 'Trade / hardware supplier',
     score: 72,
-    doorEstimate: '2-5 loading doors',
+    volumeEstimate: 'Key & ignition referrals',
     estimatedValue: 1500,
-    signal: 'Yard and loading doors plus a referral pipeline to their own customers.',
-  },
-  fuel: {
-    segment: 'fuel',
-    category: 'Service station',
-    score: 66,
-    doorEstimate: '1-3 service bays',
-    estimatedValue: 900,
-    signal: 'Service-bay doors and quick-turn repairs keep the pumps and shop running.',
+    signal: 'Shops hit key and ignition jobs they cannot finish — an easy referral partnership.',
   },
   commercial: {
     segment: 'commercial',
     category: 'Commercial property',
-    score: 60,
-    doorEstimate: 'Overhead / bay doors',
+    score: 64,
+    volumeEstimate: 'Commercial lock service',
     estimatedValue: 1200,
-    signal: 'Local commercial site with overhead doors worth a maintenance quote.',
+    signal: 'Local business with doors, panic bars, and locks worth a maintenance relationship.',
   },
 }
 
 type OsmTags = Record<string, string>
 
 function segmentForTags(tags: OsmTags): SegmentConfig {
-  if (tags.amenity === 'fire_station') return SEGMENTS.fire_station
-  if (tags.shop === 'storage_rental' || tags.office === 'storage_rental') return SEGMENTS.storage
+  if (tags.office === 'property_management') return SEGMENTS.property_management
+  if (tags.building === 'apartments' || tags.building === 'residential') return SEGMENTS.property_management
   if (tags.shop === 'car') return SEGMENTS.dealership
-  if (tags.shop === 'car_repair' || tags.craft === 'car_repair' || tags.amenity === 'car_wash')
-    return SEGMENTS.auto_repair
-  if (tags.building === 'warehouse' || tags.landuse === 'industrial' || tags.industrial)
-    return SEGMENTS.warehouse
-  if (tags.shop === 'doityourself' || tags.shop === 'trade' || tags.shop === 'hardware')
-    return SEGMENTS.home_improvement
-  if (tags.amenity === 'fuel') return SEGMENTS.fuel
+  if (tags.shop === 'storage_rental' || tags.office === 'storage_rental') return SEGMENTS.storage
+  if (tags.tourism === 'hotel' || tags.tourism === 'motel') return SEGMENTS.hotel
+  if (tags.office === 'estate_agent') return SEGMENTS.realtor
+  if (tags.shop === 'car_repair' || tags.craft === 'car_repair') return SEGMENTS.auto_repair
   return SEGMENTS.commercial
 }
 
 function buildOutreach(name: string, config: SegmentConfig, city: string) {
-  const where = city ? ` across ${city}` : ''
+  const where = city ? ` in ${city}` : ''
   return (
-    `Hi ${name} — this is ${demoCompany.ownerName} at ${demoCompany.name}. ` +
-    `We repair and maintain commercial overhead, bay, and roll-up doors${where}. ` +
-    `I noticed your ${config.doorEstimate.toLowerCase()} and wanted to offer a free 5-point ` +
-    `door safety check this week, plus same-day priority repair for local businesses. Worth a quick look?`
+    `Hi ${name} — this is ${demoCompany.ownerName} at ${demoCompany.name}, a local locksmith${where}. ` +
+    `We handle ${config.volumeEstimate.toLowerCase()} for places like yours, usually same day. ` +
+    `Happy to set up a priority account with one number to call and flat pricing. Worth a quick chat this week?`
   )
 }
 
@@ -154,16 +141,14 @@ const NOMINATIM_ENDPOINT = 'https://nominatim.openstreetmap.org/search'
 function overpassQuery(lat: number, lon: number, radius: number) {
   const a = `(around:${radius},${lat},${lon})`
   return `[out:json][timeout:25];(
-    nwr["shop"="car_repair"]${a};
+    nwr["office"="property_management"]${a};
     nwr["shop"="car"]${a};
-    nwr["amenity"="car_wash"]${a};
-    nwr["amenity"="fire_station"]${a};
     nwr["shop"="storage_rental"]${a};
     nwr["office"="storage_rental"]${a};
-    nwr["building"="warehouse"]["name"]${a};
-    nwr["amenity"="fuel"]${a};
-    nwr["shop"="doityourself"]${a};
-    nwr["shop"="trade"]${a};
+    nwr["tourism"="hotel"]["name"]${a};
+    nwr["tourism"="motel"]["name"]${a};
+    nwr["office"="estate_agent"]${a};
+    nwr["shop"="car_repair"]${a};
   );out center tags 80;`
 }
 
@@ -195,7 +180,7 @@ function elementToProspect(element: {
     lat,
     lon,
     score: config.score,
-    doorEstimate: config.doorEstimate,
+    volumeEstimate: config.volumeEstimate,
     estimatedValue: config.estimatedValue,
     signal: config.signal,
     outreach: buildOutreach(name, config, city),
@@ -217,10 +202,10 @@ async function fetchJson(url: string, init: RequestInit, timeoutMs: number) {
 }
 
 /**
- * Finds real local commercial prospects for a garage-door company using
- * OpenStreetMap (Nominatim geocoding + Overpass business search). Both APIs
- * are free, keyless, and CORS-enabled, so this runs straight from the browser.
- * Falls back to a deterministic local set if the network is unavailable.
+ * Finds real local commercial prospects for a locksmith using OpenStreetMap
+ * (Nominatim geocoding + Overpass business search). Both APIs are free, keyless,
+ * and CORS-enabled, so this runs straight from the browser. Falls back to a
+ * deterministic local set if the network is unavailable.
  */
 export async function findProspects(area: string, radiusKm = 6): Promise<ProspectResult> {
   const query = area.trim() || demoCompany.serviceArea
@@ -234,7 +219,7 @@ export async function findProspects(area: string, radiusKm = 6): Promise<Prospec
     )) as Array<{ lat: string; lon: string; display_name: string }>
 
     if (!geo?.length) {
-      return { ...fallbackProspects(query), note: `Could not locate "${query}". Showing sample prospects.` }
+      return { ...fallbackProspects(query), note: `Could not locate "${query}". Showing sample accounts.` }
     }
 
     const lat = Number(geo[0].lat)
@@ -264,14 +249,14 @@ export async function findProspects(area: string, radiusKm = 6): Promise<Prospec
       .slice(0, 14)
 
     if (!prospects.length) {
-      return { ...fallbackProspects(query), note: `No commercial door accounts found near "${query}" yet.` }
+      return { ...fallbackProspects(query), note: `No commercial accounts found near "${query}" yet.` }
     }
 
     return { prospects, area: query, center: { lat, lon }, source: 'openstreetmap' }
   } catch {
     return {
       ...fallbackProspects(query),
-      note: 'Live lead source unreachable — showing sample prospects.',
+      note: 'Live lead source unreachable — showing sample accounts.',
     }
   }
 }
@@ -279,12 +264,12 @@ export async function findProspects(area: string, radiusKm = 6): Promise<Prospec
 function fallbackProspects(area: string): ProspectResult {
   const city = titleCaseCity(area.split(',')[0] ?? area) || 'your area'
   const seeds: Array<{ name: string; segment: ProspectSegment; address: string }> = [
-    { name: `${city} Self Storage`, segment: 'storage', address: '1200 Industrial Pkwy' },
-    { name: 'Apex Auto Service', segment: 'auto_repair', address: '88 Garage Lane' },
-    { name: `${city} Fire Station 4`, segment: 'fire_station', address: '300 Civic Dr' },
-    { name: 'Northbridge Distribution', segment: 'warehouse', address: '45 Logistics Way' },
+    { name: `${city} Property Group`, segment: 'property_management', address: '1200 Main St' },
     { name: 'Riverside Motors', segment: 'dealership', address: '910 Auto Mile' },
-    { name: 'BuildRight Supply', segment: 'home_improvement', address: '275 Trade Ct' },
+    { name: `${city} Self Storage`, segment: 'storage', address: '1450 Industrial Pkwy' },
+    { name: 'The Bell Hotel', segment: 'hotel', address: '88 Center Ave' },
+    { name: 'Anchor Realty', segment: 'realtor', address: '275 Market St' },
+    { name: 'Apex Auto Service', segment: 'auto_repair', address: '45 Garage Lane' },
   ]
 
   const prospects = seeds.map((seed, index) => {
@@ -297,7 +282,7 @@ function fallbackProspects(area: string): ProspectResult {
       address: seed.address,
       city,
       score: config.score,
-      doorEstimate: config.doorEstimate,
+      volumeEstimate: config.volumeEstimate,
       estimatedValue: config.estimatedValue,
       signal: config.signal,
       outreach: buildOutreach(seed.name, config, city),
