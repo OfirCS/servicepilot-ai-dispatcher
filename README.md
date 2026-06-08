@@ -1,148 +1,61 @@
 # ServicePilot
 
-The AI that runs your front desk — for small service businesses.
+**The AI front desk for locksmiths.**
 
-ServicePilot is an **agentic AI workforce** for garage door and locksmith companies. A team of AI agents answers missed calls, qualifies customers over SMS, books appointments, finds new commercial accounts, and follows up for Google reviews — autonomously. Your team stays in control and only steps in when an agent asks for approval. The first wedge is garage door companies because missed emergency calls are high-intent, easy to measure, and often worth hundreds of dollars.
+ServicePilot is an **agentic AI workforce** for small locksmith businesses. A team of AI agents answers missed calls, qualifies the job over text, books the work, finds new commercial accounts, and asks happy customers for reviews — on their own. The owner stays in control and only steps in when an agent asks for the OK.
+
+The whole product is **one calm home screen** built for a busy owner who is usually on a job, not at a desk:
+
+- **Needs your OK** — the human-in-the-loop inbox. Agents do the work and only stop here when a person should decide.
+- **Today's jobs** — every missed call and text the agents turned into a real job, one tap to open.
+- **Your AI team** — five named agents and what each one is doing right now.
+- **Live activity** — the autonomous actions the agents have taken.
+- **Try a missed call** and **Find new accounts** — the demo and the outbound prospector, available as inline actions.
 
 ### The AI workforce
 
-| Agent | Runs | Does |
+| Agent | Job | What it does |
 |---|---|---|
-| Riley | Reception | Recovers missed calls with an instant text-back |
-| Iris | Intake | Qualifies the job over SMS (issue, urgency, location, photos) |
-| Dex | Dispatch | Books jobs and schedules the technician window |
-| Pia | Prospecting | Finds new local commercial door accounts to win |
-| Remy | Reviews | Requests a Google review after the job is done |
+| Riley | Answers the phone | Recovers missed calls with an instant text-back |
+| Iris | Qualifies the job | Figures out lockout vs. rekey vs. car key, the location, and urgency |
+| Dex | Books & schedules | Books the job and sets the arrival window |
+| Pia | Finds new accounts | Finds local commercial accounts worth a standing relationship |
+| Remy | Earns 5-star reviews | Asks happy customers for a Google review |
 
-The dashboard opens on the **AI workforce** home: every agent's live status and current task, a **"Needs your approval"** inbox (human-in-the-loop), and a feed of the autonomous actions agents have taken.
+## Why locksmiths
 
-![ServicePilot dashboard](docs/screenshots/servicepilot-yc-desktop.png)
+A locksmith's calls are high-intent and time-sensitive: someone is locked out of a car or house, a new tenant needs a rekey, a shop lost the only key fob. If no one answers in the first minute, the customer calls the next locksmith. ServicePilot makes sure the first response always happens — instantly, by text — even when the owner is under a dash or drilling a lock.
 
-![ServicePilot recovery demo](docs/screenshots/servicepilot-demo.png)
+### Ideal customer
 
-## Business Plan
+- Owner-operated or small-crew locksmiths (1–10 techs)
+- Mobile, mostly on the road, missing calls during jobs and after hours
+- Buying leads from Google, Yelp, or paid search and losing the ones they can't answer
 
-### Problem
-
-Small service businesses miss calls while owners and technicians are already on jobs. Those calls are usually high-intent: a garage door is stuck closed, a car is trapped, a lock needs urgent replacement, or a customer needs same-day help. If the business does not respond quickly, the customer calls the next company.
-
-### Product
-
-ServicePilot is an AI SMS dispatcher that sits behind a Twilio phone number.
-
-1. Customer calls the business.
-2. Twilio forwards the call to the owner.
-3. If the owner does not answer, ServicePilot texts the customer in under a minute.
-4. The AI intake flow collects the issue, urgency, city/address, preferred time, and photos when useful.
-5. The owner gets a dispatch-ready summary.
-6. The job can be booked.
-7. After completion, ServicePilot sends a Google review request.
-
-The MVP deliberately starts with SMS instead of real-time voice AI. SMS is cheaper, easier to inspect, safer for customer communication, and strong enough to prove whether missed-call recovery books jobs.
-
-### Ideal Customer Profile
-
-Initial ICP:
-- Garage door repair companies
-- 1-10 technicians
-- Owner-operated or dispatcher-light
-- Buying leads from Google Local Services, SEO, Yelp, or paid search
-- Losing calls during field work or after hours
-
-Expansion:
-- Locksmiths
-- HVAC
-- Plumbing
-- Appliance repair
-- Other emergency home services
+The agents generalize cleanly to other emergency home services (garage doors, HVAC, plumbing, appliance repair) — locksmiths are the wedge because the urgency and per-job value are obvious and easy to measure.
 
 ### Wedge
 
-Missed-call recovery.
+Missed-call recovery. The before/after metric is concrete: missed calls recovered, jobs qualified, jobs booked, revenue saved, and reviews requested.
 
-This is the easiest outcome to sell because the before/after metric is concrete:
-- missed calls recovered
-- qualified leads created
-- jobs booked
-- revenue recovered
-- reviews requested
+### Lead finder (outbound)
 
-### MVP Scope
-
-Included now:
-- React/Vite operator dashboard
-- Live missed-call recovery simulator
-- Outbound lead-finder marketing agent (real OpenStreetMap data, no API keys)
-- Deterministic AI intake classifier for demo mode
-- Twilio Voice webhook route
-- Twilio call-status recovery route
-- Twilio inbound SMS route with TwiML response
-- Supabase schema with RLS
-- Netlify Functions API layer
-- Booking endpoint
-- Review request endpoint
-- Metrics endpoint
-- YC/demo operating model spreadsheet
-
-Not built first:
-- full CRM
-- technician mobile app
-- invoices/payments
-- ServiceTitan or Jobber integration
-- real-time voice agent
-- SEO page generator
-
-### Revenue Model
-
-Simple first pricing:
-- $299/month per location for missed-call recovery and review automation
-- optional usage pass-through for Twilio SMS/calls
-- later: $499-$799/month for dispatch automation, calendar sync, and CRM integrations
-
-Why this can work:
-- one recovered emergency garage door job can be worth $300-$800
-- a few recovered calls can cover monthly pricing
-- review requests compound local search conversion
-
-### Go-To-Market
-
-Week 1:
-- launch demo
-- onboard 1 garage door operator manually
-- connect Twilio number and Supabase
-- prove missed-call recovery
-
-Week 2:
-- measure response rate, qualified leads, booked jobs
-- manually help dispatch if needed
-- collect owner feedback
-
-Week 3:
-- add calendar booking and review loop for real pilot
-- build case study around recovered revenue
-
-Week 4:
-- onboard 2-3 more companies
-- track weekly recovered revenue and review lift
-
-### YC Narrative
-
-We are building the AI front desk for local emergency service businesses. The first product is a Twilio-powered AI SMS agent that recovers missed calls for garage door companies, qualifies urgent leads, notifies the owner, books jobs, and requests reviews.
-
-The market is large because every service vertical has the same problem: paid leads and organic calls are wasted when no one answers. We start with garage doors because urgency and revenue are obvious, then expand across trades.
-
-### Lead Finder (Outbound Marketing Agent)
-
-Missed-call recovery is the inbound wedge. The Lead Finder is the outbound side: an agent that goes and finds new customers for the operator.
-
-Open the **Lead finder** tab, type a service area (for example `North York, Toronto`), and run the agent. It:
+Missed-call recovery is the inbound side. The Lead Finder is the outbound side: **Pia** goes and finds new accounts for the owner. Open **Find new accounts**, type a service area, and she:
 
 1. Geocodes the area with OpenStreetMap Nominatim.
-2. Scans OpenStreetMap Overpass for real local businesses that own serviceable doors — auto shops, dealerships, car washes, self-storage, warehouses, fire stations, and trade suppliers.
-3. Scores each business for fit, estimates door count and annual account value, and drafts a ready-to-send first message.
-4. Lets the operator push any prospect into the same lead queue, booking, and review loop with one click.
+2. Scans OpenStreetMap Overpass for the local businesses that need a locksmith on call — property managers, car dealerships, self-storage, hotels, real estate offices, and auto shops.
+3. Scores each account for fit, estimates the yearly value, and drafts a ready-to-send first message.
+4. Lets the owner push any account into the same job queue with one tap.
 
-This uses **real, free, keyless data** (OpenStreetMap), so it works in the browser during `npm run dev` and on Netlify without configuration. The server route `/api/marketing/prospect` can additionally persist prospects to Supabase. If the live source is ever unreachable, the agent falls back to a deterministic sample set so the demo never breaks.
+This uses **real, free, keyless data** (OpenStreetMap), so it works in the browser during `npm run dev` and on Netlify without configuration. If the live source is ever unreachable, it falls back to a deterministic sample set so the demo never breaks.
+
+### Revenue model
+
+- $299/month per location for missed-call recovery and review automation
+- Optional usage pass-through for Twilio SMS/calls
+- Later: dispatch automation, calendar sync, and CRM integrations
+
+One recovered emergency lockout or rekey can cover much of the monthly price; recovered car-key and commercial jobs and compounding reviews do the rest.
 
 ## Architecture
 
@@ -157,38 +70,37 @@ AI intake classifier
         ↓
 Supabase Postgres
         ↓
-Owner SMS summary
+Owner gets a job summary + one-tap actions
         ↓
 Booking + review follow-up
         ↓
-Dashboard metrics
+Home-screen metrics
 ```
 
-## Tech Stack
+## Tech stack
 
-- Frontend: React, TypeScript, Vite
+- Frontend: React, TypeScript, Vite (single-screen owner dashboard, framer-motion drawers)
 - Hosting/API: Netlify + Netlify Functions
 - Database: Supabase Postgres
 - Phone/SMS: Twilio
 - AI: deterministic demo classifier now, OpenAI-ready via `OPENAI_API_KEY`
 - Lead sourcing: OpenStreetMap (Nominatim geocoding + Overpass), free and keyless
-- Workbook: Excel model for YC/demo metrics
 
-## API Routes
+## API routes
 
 | Method | Route | Purpose |
 |---|---|---|
-| `POST` | `/api/twilio/inbound-call` | Forward inbound calls and attach no-answer callback |
+| `POST` | `/api/twilio/inbound-call` | Forward inbound calls and attach a no-answer callback |
 | `POST` | `/api/twilio/call-status` | Trigger missed-call recovery SMS |
 | `POST` | `/api/twilio/inbound-sms` | Classify customer replies and return Twilio XML |
-| `POST` | `/api/ai/intake` | Classify issue, urgency, missing fields, and reply |
-| `POST` | `/api/marketing/prospect` | Find local commercial door accounts as outbound leads |
+| `POST` | `/api/ai/intake` | Classify the job, urgency, missing fields, and reply |
+| `POST` | `/api/marketing/prospect` | Find local commercial accounts as outbound leads |
 | `POST` | `/api/calendar/book` | Create a scheduled job |
-| `POST` | `/api/followups/review` | Send review request SMS |
-| `GET` | `/api/dashboard/metrics` | Return dashboard metrics |
+| `POST` | `/api/followups/review` | Send a review request SMS |
+| `GET` | `/api/dashboard/metrics` | Return home-screen metrics |
 | `GET/POST` | `/api/leads` | Demo/Supabase lead access |
 
-## Local Development
+## Local development
 
 ```bash
 npm install
@@ -203,7 +115,7 @@ npm run lint
 npm run typecheck:functions
 ```
 
-## Environment Variables
+## Environment variables
 
 Copy `.env.example` and set values locally or in Netlify.
 
@@ -222,27 +134,13 @@ Optional:
 
 Keep `SERVICEPILOT_DEMO_MODE=true` until real SMS sending is intended.
 
-## Supabase Setup
+## Supabase setup
 
-Run the migration:
+Run the migration in `supabase/migrations/202606030001_servicepilot_mvp.sql`.
 
-```sql
-supabase/migrations/202606030001_servicepilot_mvp.sql
-```
+Tables: `companies`, `leads`, `messages`, `jobs`, `followups`, `integration_events`. All public tables have RLS enabled. Server writes use the Supabase service role key from Netlify Functions only — never expose it in the browser.
 
-Tables:
-- `companies`
-- `leads`
-- `messages`
-- `jobs`
-- `followups`
-- `integration_events`
-
-All public tables have RLS enabled. Server writes should use the Supabase service role key from Netlify Functions only. Do not expose the service role key in the browser.
-
-## Twilio Setup
-
-Configure the Twilio phone number:
+## Twilio setup
 
 - Voice webhook: `https://YOUR_SITE.netlify.app/api/twilio/inbound-call`
 - Messaging webhook: `https://YOUR_SITE.netlify.app/api/twilio/inbound-sms`
@@ -253,36 +151,10 @@ The voice route forwards calls to `FORWARD_TO_NUMBER`. If the call is not answer
 
 This repo includes `netlify.toml`.
 
-Build command:
+- Build command: `npm run build`
+- Publish directory: `dist`
+- Functions directory: `netlify/functions`
 
-```bash
-npm run build
-```
+## Current status
 
-Publish directory:
-
-```text
-dist
-```
-
-Functions directory:
-
-```text
-netlify/functions
-```
-
-## Demo Assets
-
-The app includes:
-- branded ServicePilot mark
-- live missed-call simulator
-- outbound lead-finder agent (real OpenStreetMap data)
-- operator dashboard
-- YC proof surface
-- setup checklist
-- GitHub-ready screenshots in `docs/screenshots/`
-- YC/demo operating workbook at `docs/ServicePilot_YC_MVP_Model.xlsx`
-
-## Current Status
-
-This is a functional MVP prototype with production-shaped integration boundaries. It runs locally in demo mode without API keys and is ready to connect to Supabase, Twilio, and Netlify environment variables for a real pilot.
+A functional MVP with production-shaped integration boundaries. It runs locally in demo mode without any API keys, and is ready to connect to Supabase, Twilio, and Netlify environment variables for a real locksmith pilot.
