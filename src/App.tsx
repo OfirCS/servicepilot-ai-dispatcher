@@ -1,276 +1,117 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+  Activity,
   ArrowRight,
   Boxes,
+  Brain,
   Building2,
-  Calendar,
   Car,
   CheckCircle2,
-  Clock,
-  ExternalLink,
-  Home,
-  KeyRound,
+  Dumbbell,
+  Globe,
+  GraduationCap,
+  Landmark,
+  LineChart,
   Loader2,
   MapPin,
-  MessageSquare,
+  Pause,
+  PenLine,
   Phone,
-  PhoneCall,
+  Play,
   Plus,
   Radar,
-  Search,
+  RefreshCw,
   Send,
   Settings,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
-  Star,
+  Target,
+  Trash2,
   TrendingUp,
-  Wrench,
+  Trophy,
+  Warehouse,
   X,
-  Zap,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import {
-  agents,
-  classifyIntake,
-  demoActivity,
-  demoApprovals,
-  demoCompany,
-  demoLeads,
-  demoMetrics,
-  money,
-  type Agent,
-  type AgentActivity,
-  type Approval,
-  type DashboardMetrics,
-  type DemoLead,
-  type LeadStatus,
-  type LeadUrgency,
-} from './lib/servicepilot'
-import { findProspects, type Prospect } from './lib/leadfinder'
+import { formatAgo, metrics, useEngine } from './lib/engine'
+import type { Account, AgentId, Segment, Stage, Tier } from './lib/types'
 import './App.css'
 
-type DrawerMode = 'demo' | 'finder' | 'job' | 'setup' | null
-
-const agentIcon: Record<Agent['id'], LucideIcon> = {
-  reception: PhoneCall,
-  intake: MessageSquare,
-  dispatch: Calendar,
-  prospector: Radar,
-  reviews: Star,
+function money(value: number) {
+  if (value >= 1000) return `$${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}k`
+  return `$${Math.round(value)}`
 }
 
-const agentStatusLabel: Record<Agent['status'], string> = {
-  working: 'Working',
-  idle: 'Ready',
-  needs_you: 'Needs you',
+const agentIcon: Record<AgentId, LucideIcon> = {
+  scout: Radar,
+  qualifier: Target,
+  writer: PenLine,
+  closer: Send,
+  analyst: LineChart,
 }
 
-const segmentIcon: Record<Prospect['segment'], LucideIcon> = {
+const segmentIcon: Record<Segment, LucideIcon> = {
   property_management: Building2,
+  apartments: Building2,
+  hotel: Building2,
+  hospital: Plus,
+  university: GraduationCap,
+  school: GraduationCap,
+  government: Landmark,
   dealership: Car,
   storage: Boxes,
-  hotel: Building2,
-  realtor: Home,
-  auto_repair: Wrench,
+  mall_retail: ShoppingBag,
+  bank: Landmark,
+  warehouse: Warehouse,
+  gym: Dumbbell,
+  office: Building2,
   commercial: Building2,
 }
 
-const urgencyTone: Record<LeadUrgency, 'good' | 'warn' | 'danger' | 'neutral'> = {
-  emergency: 'danger',
-  same_day: 'warn',
-  normal: 'neutral',
-  quote: 'neutral',
+const stageLabel: Record<Stage, string> = {
+  discovered: 'Found',
+  qualified: 'Qualified',
+  ready: 'Ready to send',
+  contacted: 'Contacted',
+  won: 'Won',
+  passed: 'Passed',
 }
 
-const setupSteps = [
-  {
-    title: 'Connect your phone number',
-    detail: 'Point your business line at Keystone so Riley can text back every missed call.',
-    env: 'Twilio',
-  },
-  {
-    title: 'Turn on the database',
-    detail: 'Jobs, customers, and messages save automatically once Supabase is connected.',
-    env: 'Supabase',
-  },
-  {
-    title: 'Add your review link',
-    detail: 'Remy uses your Google review link to ask happy customers for a 5-star review.',
-    env: 'Google',
-  },
-  {
-    title: 'Set your service area',
-    detail: 'Pia uses it to find new commercial accounts near you.',
-    env: 'Service area',
-  },
-]
+const tierTone: Record<Tier, 'gold' | 'blue' | 'grey'> = { A: 'gold', B: 'blue', C: 'grey' }
 
-let idSeq = 0
-function uid(prefix: string) {
-  idSeq += 1
-  return `${prefix}-${idSeq}`
-}
-
-function greeting() {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 18) return 'Good afternoon'
-  return 'Good evening'
-}
-
-function statusLabel(status: LeadStatus) {
-  return status.replace('_', ' ')
-}
+type Filter = 'all' | 'A' | 'ready' | 'contacted' | 'won'
 
 function App() {
-  const [leads, setLeads] = useState<DemoLead[]>(demoLeads)
-  const [selectedLeadId, setSelectedLeadId] = useState(demoLeads[0].id)
-  const [metrics, setMetrics] = useState<DashboardMetrics>(demoMetrics)
-  const [approvals, setApprovals] = useState<Approval[]>(demoApprovals)
-  const [activity, setActivity] = useState<AgentActivity[]>(demoActivity)
-  const [drawer, setDrawer] = useState<DrawerMode>(null)
+  const { state, clock, actions } = useEngine()
+  const m = useMemo(() => metrics(state), [state])
+  const [drawer, setDrawer] = useState<'settings' | string | null>(null) // string = accountId
+  const [filter, setFilter] = useState<Filter>('all')
+  const [territoryInput, setTerritoryInput] = useState('')
 
-  const [demoMessage, setDemoMessage] = useState(
-    "I'm locked out of my car downtown and my keys are inside. Can someone come now?",
-  )
-  const [prospectArea, setProspectArea] = useState(demoCompany.serviceArea)
-  const [prospects, setProspects] = useState<Prospect[]>([])
-  const [prospectStatus, setProspectStatus] = useState<'idle' | 'loading' | 'done'>('idle')
-  const [prospectSource, setProspectSource] = useState<'openstreetmap' | 'demo' | null>(null)
-  const [prospectNote, setProspectNote] = useState<string | null>(null)
-  const [addedProspects, setAddedProspects] = useState<Record<string, true>>({})
+  const selected = typeof drawer === 'string' ? state.accounts.find((a) => a.id === drawer) ?? null : null
 
-  const selectedLead = leads.find((lead) => lead.id === selectedLeadId) ?? leads[0]
-  const handledToday = agents.reduce((sum, agent) => sum + agent.doneToday, 0)
+  const visible = useMemo(() => {
+    const ranked = [...state.accounts].sort((a, b) => {
+      const stageRank = (x: Account) => ['ready', 'qualified', 'contacted', 'won', 'discovered', 'passed'].indexOf(x.stage)
+      if (a.stage !== b.stage) return stageRank(a) - stageRank(b)
+      return b.score - a.score
+    })
+    if (filter === 'all') return ranked.filter((a) => a.stage !== 'passed')
+    if (filter === 'A') return ranked.filter((a) => a.tier === 'A' && a.stage !== 'passed' && a.stage !== 'discovered')
+    if (filter === 'ready') return ranked.filter((a) => a.stage === 'ready')
+    if (filter === 'contacted') return ranked.filter((a) => a.stage === 'contacted')
+    return ranked.filter((a) => a.stage === 'won')
+  }, [state.accounts, filter])
 
-  const greetLine = useMemo(
-    () => `${greeting()}, ${demoCompany.ownerName}. Your AI front desk handled ${handledToday} things today.`,
-    [handledToday],
-  )
+  const scanning = state.territories.some((t) => t.status === 'scanning')
 
-  function logActivity(agentId: Agent['id'], agent: string, text: string) {
-    setActivity((current) => [{ id: uid('ev'), agentId, agent, text, time: 'just now' }, ...current].slice(0, 8))
-  }
-
-  function openJob(id: string) {
-    setSelectedLeadId(id)
-    setDrawer('job')
-  }
-
-  function runMissedCallDemo() {
-    const intake = classifyIntake(demoMessage)
-    const lead: DemoLead = {
-      id: uid('LD'),
-      customerName: 'New caller',
-      customerPhone: '+1 512 555 0110',
-      city: demoMessage.match(/downtown|austin|north|east|west|south/i)?.[0] ?? 'Nearby',
-      issueType: intake.issueType,
-      urgency: intake.urgency,
-      status: intake.status,
-      source: 'missed_call',
-      estimatedValue: intake.estimatedValue,
-      preferredTime: /today|now/i.test(demoMessage) ? 'Right now' : 'Flexible',
-      summary: intake.summary,
-      receivedAt: 'just now',
-      lastMessage: intake.reply,
-      timeline: [
-        'Missed call detected by the Twilio webhook.',
-        'Riley texted back instantly.',
-        `Iris classified ${intake.issueType.toLowerCase()} (${intake.urgency.replace('_', ' ')}).`,
-        intake.status === 'qualified' ? 'Job summary is ready for you.' : 'Iris is asking one more question.',
-      ],
-    }
-    setLeads((current) => [lead, ...current])
-    setSelectedLeadId(lead.id)
-    setMetrics((current) => ({
-      ...current,
-      newLeads: current.newLeads + 1,
-      missedCallsRecovered: current.missedCallsRecovered + 1,
-      estimatedRevenue: current.estimatedRevenue + intake.estimatedValue,
-    }))
-    logActivity('reception', 'Riley', 'recovered a missed call and texted back in seconds.')
-    logActivity('intake', 'Iris', `qualified a ${intake.issueType.toLowerCase()}.`)
-    setDrawer('job')
-  }
-
-  function bookSelectedLead() {
-    setLeads((current) =>
-      current.map((lead) =>
-        lead.id === selectedLead.id
-          ? {
-              ...lead,
-              status: 'booked',
-              preferredTime: lead.preferredTime === 'Flexible' ? 'Today 3:00–5:00' : lead.preferredTime,
-              timeline: [...lead.timeline, 'Dex booked the job.'],
-            }
-          : lead,
-      ),
-    )
-    setMetrics((current) => ({ ...current, jobsBooked: current.jobsBooked + 1 }))
-    logActivity('dispatch', 'Dex', `booked ${selectedLead.customerName} and texted a confirmation.`)
-  }
-
-  function sendReviewRequest() {
-    setMetrics((current) => ({ ...current, reviewsRequested: current.reviewsRequested + 1 }))
-    setLeads((current) =>
-      current.map((lead) =>
-        lead.id === selectedLead.id
-          ? { ...lead, status: 'completed', timeline: [...lead.timeline, 'Remy sent a review request.'] }
-          : lead,
-      ),
-    )
-    logActivity('reviews', 'Remy', `asked ${selectedLead.customerName} for a Google review.`)
-  }
-
-  function approve(approval: Approval) {
-    setApprovals((current) => current.filter((item) => item.id !== approval.id))
-    if (approval.agentId === 'dispatch') setMetrics((current) => ({ ...current, jobsBooked: current.jobsBooked + 1 }))
-    if (approval.agentId === 'reviews') setMetrics((current) => ({ ...current, reviewsRequested: current.reviewsRequested + 1 }))
-    logActivity(approval.agentId, approval.agent, `got your OK — ${approval.title.toLowerCase()}.`)
-  }
-
-  function dismiss(approval: Approval) {
-    setApprovals((current) => current.filter((item) => item.id !== approval.id))
-  }
-
-  async function runProspectSearch() {
-    setProspectStatus('loading')
-    setProspectNote(null)
-    const result = await findProspects(prospectArea)
-    setProspects(result.prospects)
-    setProspectSource(result.source)
-    setProspectNote(result.note ?? null)
-    setProspectStatus('done')
-    logActivity('prospector', 'Pia', `found ${result.prospects.length} new accounts in ${prospectArea}.`)
-  }
-
-  function addProspectToPipeline(prospect: Prospect) {
-    if (addedProspects[prospect.id]) return
-    const lead: DemoLead = {
-      id: uid('LD'),
-      customerName: prospect.name,
-      customerPhone: prospect.phone ?? 'No number — visit or email',
-      city: prospect.city || prospectArea.split(',')[0] || prospectArea,
-      issueType: prospect.category,
-      urgency: 'quote',
-      status: 'captured',
-      source: 'outbound',
-      estimatedValue: prospect.estimatedValue,
-      preferredTime: 'Outbound — schedule intro call',
-      summary: `${prospect.category}. ${prospect.signal}`,
-      receivedAt: 'just now',
-      lastMessage: prospect.outreach,
-      timeline: [
-        'Sourced by Pia, your prospecting agent.',
-        `Fit score ${prospect.score}/100 · ${prospect.volumeEstimate}.`,
-        'First message drafted and ready to send.',
-      ],
-    }
-    setLeads((current) => [lead, ...current])
-    setSelectedLeadId(lead.id)
-    setAddedProspects((current) => ({ ...current, [prospect.id]: true }))
-    setMetrics((current) => ({ ...current, newLeads: current.newLeads + 1 }))
+  function submitTerritory(e: FormEvent) {
+    e.preventDefault()
+    if (!territoryInput.trim()) return
+    actions.addTerritory(territoryInput)
+    setTerritoryInput('')
   }
 
   return (
@@ -278,28 +119,40 @@ function App() {
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">
-            <KeyRound size={20} aria-hidden="true" />
+            <Radar size={20} aria-hidden="true" />
           </span>
           <div className="brand-text">
             <strong>ServicePilot</strong>
-            <span>{demoCompany.name}</span>
+            <span>{state.settings.companyName}</span>
           </div>
         </div>
 
         <div className="top-actions">
-          <span className="live-pill">
-            <span className="dot" aria-hidden="true" />
-            All agents live
-          </span>
-          <button type="button" className="ghost-button" onClick={() => setDrawer('finder')}>
-            <Radar size={16} aria-hidden="true" />
-            Find new accounts
+          <div className="seg" role="group" aria-label="Autonomy">
+            <button
+              type="button"
+              className={state.settings.autonomy === 'ask' ? 'seg-btn on' : 'seg-btn'}
+              onClick={() => actions.updateSettings({ autonomy: 'ask' })}
+            >
+              Ask first
+            </button>
+            <button
+              type="button"
+              className={state.settings.autonomy === 'auto' ? 'seg-btn on' : 'seg-btn'}
+              onClick={() => actions.updateSettings({ autonomy: 'auto' })}
+            >
+              Full auto
+            </button>
+          </div>
+          <button
+            type="button"
+            className={state.running ? 'run-btn on' : 'run-btn'}
+            onClick={actions.toggle}
+          >
+            {state.running ? <Pause size={15} aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
+            {state.running ? 'Agents running' : 'Start agents'}
           </button>
-          <button type="button" className="primary-button" onClick={() => setDrawer('demo')}>
-            <Phone size={16} aria-hidden="true" />
-            Try a missed call
-          </button>
-          <button type="button" className="icon-button" onClick={() => setDrawer('setup')} aria-label="Setup">
+          <button type="button" className="icon-button" onClick={() => setDrawer('settings')} aria-label="Settings">
             <Settings size={18} aria-hidden="true" />
           </button>
         </div>
@@ -308,91 +161,124 @@ function App() {
       <main className="board">
         <section className="hello">
           <div>
-            <span className="eyeline">Today</span>
-            <h1>{greetLine}</h1>
+            <span className="eyeline">Autonomous commercial lead engine</span>
+            <h1>
+              {state.running ? 'Your agents are working the map' : 'Put your sales team on autopilot'}
+              {state.settings.llmEnabled && state.settings.apiKey ? ' · Claude-powered' : ''}
+            </h1>
+            <p className="hello-sub">
+              Five AI agents scan real territories, qualify every commercial account, score its value, and draft the
+              first touch — so {state.settings.leaderName} only steps in to approve.
+            </p>
           </div>
-          <div className="hello-metrics">
-            <Metric label="Jobs booked" value={`${metrics.jobsBooked}`} />
-            <Metric label="Calls recovered" value={`${metrics.missedCallsRecovered}`} />
-            <Metric label="Revenue saved" value={money(metrics.estimatedRevenue)} />
-            <Metric label="Reviews asked" value={`${metrics.reviewsRequested}`} />
+          <div className="kpis">
+            <Kpi icon={TrendingUp} label="Pipeline value" value={money(m.pipelineValue)} accent />
+            <Kpi icon={Target} label="A-tier accounts" value={`${m.aTier}`} />
+            <Kpi icon={Building2} label="Accounts found" value={`${m.discovered}`} />
+            <Kpi icon={Trophy} label="Won / yr" value={money(m.wonValue)} />
           </div>
         </section>
 
+        <Funnel m={m} />
+
         <div className="grid">
           <div className="col-main">
-            <section className="card approvals">
+            <section className="card">
               <div className="card-head">
                 <div>
-                  <h2>Needs your OK</h2>
-                  <p>Your agents do the work and only stop here when a person should decide.</p>
+                  <h2>Territories</h2>
+                  <p>Add a city or area and the Scout goes to work on real map data.</p>
                 </div>
-                <span className="count-pill">{approvals.length}</span>
+                <span className="count-pill subtle">
+                  {m.territoriesCovered}/{m.territoriesTotal}
+                </span>
               </div>
-
-              {approvals.length === 0 ? (
-                <div className="empty good">
-                  <CheckCircle2 size={26} aria-hidden="true" />
-                  <p>All clear. Nothing is waiting on you right now.</p>
-                </div>
-              ) : (
-                <div className="approval-list">
-                  {approvals.map((approval) => {
-                    const Icon = agentIcon[approval.agentId]
-                    return (
-                      <article className="approval" key={approval.id}>
-                        <div className="approval-agent">
-                          <span className="avatar">
-                            <Icon size={15} aria-hidden="true" />
-                          </span>
-                          <div>
-                            <strong>{approval.agent}</strong>
-                            <small>{approval.agentRole}</small>
-                          </div>
-                        </div>
-                        <div className="approval-body">
-                          <strong>{approval.title}</strong>
-                          <p>{approval.detail}</p>
-                        </div>
-                        <div className="approval-actions">
-                          <button type="button" className="primary-button" onClick={() => approve(approval)}>
-                            <CheckCircle2 size={15} aria-hidden="true" />
-                            {approval.action}
-                          </button>
-                          <button type="button" className="text-button" onClick={() => dismiss(approval)}>
-                            Not now
-                          </button>
-                        </div>
-                      </article>
-                    )
-                  })}
-                </div>
-              )}
+              <form className="terr-form" onSubmit={submitTerritory}>
+                <span className="terr-input">
+                  <MapPin size={15} aria-hidden="true" />
+                  <input
+                    value={territoryInput}
+                    onChange={(e) => setTerritoryInput(e.target.value)}
+                    placeholder="Add a territory, e.g. Dallas, TX"
+                    aria-label="Add a territory"
+                  />
+                </span>
+                <button type="submit" className="primary-button">
+                  <Plus size={15} aria-hidden="true" />
+                  Send scout
+                </button>
+              </form>
+              <div className="terr-list">
+                {state.territories.map((t) => (
+                  <div className="terr" key={t.name}>
+                    <span className={`terr-dot ${t.status}`} aria-hidden="true" />
+                    <div className="terr-main">
+                      <strong>{t.name}</strong>
+                      <small>
+                        {t.status === 'scanning'
+                          ? 'Scanning…'
+                          : t.status === 'covered'
+                            ? `${t.found} accounts found`
+                            : t.status === 'error'
+                              ? 'Scan failed'
+                              : 'Queued'}
+                      </small>
+                    </div>
+                    <button type="button" className="mini-button" onClick={() => actions.rescanTerritory(t.name)} aria-label={`Rescan ${t.name}`}>
+                      <RefreshCw size={13} aria-hidden="true" />
+                    </button>
+                    <button type="button" className="mini-button" onClick={() => actions.removeTerritory(t.name)} aria-label={`Remove ${t.name}`}>
+                      <Trash2 size={13} aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </section>
 
             <section className="card">
               <div className="card-head">
                 <div>
-                  <h2>Today's jobs</h2>
-                  <p>Every call and message your agents turned into a real job.</p>
+                  <h2>Pipeline</h2>
+                  <p>Every account the agents found and scored. Tap one to see the plan.</p>
                 </div>
-                <span className="count-pill subtle">{leads.length}</span>
+                <div className="filters">
+                  {(['all', 'A', 'ready', 'contacted', 'won'] as Filter[]).map((f) => (
+                    <button key={f} type="button" className={filter === f ? 'filter on' : 'filter'} onClick={() => setFilter(f)}>
+                      {f === 'all' ? 'All' : f === 'A' ? 'A-tier' : f === 'ready' ? 'Ready' : f === 'contacted' ? 'Contacted' : 'Won'}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="job-list">
-                {leads.map((lead) => (
-                  <button type="button" className="job" key={lead.id} onClick={() => openJob(lead.id)}>
-                    <div className="job-main">
-                      <strong>{lead.customerName}</strong>
-                      <span>{lead.issueType} · {lead.city}</span>
-                    </div>
-                    <div className="job-meta">
-                      <StatusChip tone={urgencyTone[lead.urgency]}>{lead.urgency.replace('_', ' ')}</StatusChip>
-                      <span className="job-value">{money(lead.estimatedValue)}</span>
-                    </div>
-                    <ArrowRight size={16} className="job-arrow" aria-hidden="true" />
-                  </button>
-                ))}
-              </div>
+
+              {visible.length === 0 ? (
+                <EngineEmpty running={state.running} scanning={scanning} onStart={actions.start} />
+              ) : (
+                <div className="acct-list">
+                  {visible.map((a) => {
+                    const Icon = segmentIcon[a.segment] ?? Building2
+                    return (
+                      <button type="button" className="acct" key={a.id} onClick={() => setDrawer(a.id)}>
+                        <span className="avatar">
+                          <Icon size={16} aria-hidden="true" />
+                        </span>
+                        <div className="acct-main">
+                          <strong>{a.name}</strong>
+                          <small>
+                            {a.category} · {a.sizeLabel}
+                            {a.city ? ` · ${a.city}` : ''}
+                          </small>
+                        </div>
+                        <div className="acct-meta">
+                          {a.score > 0 && <span className={`tier ${tierTone[a.tier]}`}>{a.tier}</span>}
+                          <span className="acct-acv">{a.acv ? `${money(a.acv)}/yr` : '—'}</span>
+                          <span className={`stage ${a.stage}`}>{stageLabel[a.stage]}</span>
+                        </div>
+                        <ArrowRight size={15} className="acct-arrow" aria-hidden="true" />
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </section>
           </div>
 
@@ -401,14 +287,16 @@ function App() {
               <div className="card-head">
                 <div>
                   <h2>Your AI team</h2>
-                  <p>Five agents that run your front desk.</p>
+                  <p>Five agents, always on.</p>
                 </div>
+                <span className={state.running ? 'live-dot' : 'live-dot off'} aria-hidden="true" />
               </div>
               <div className="agent-list">
-                {agents.map((agent) => {
-                  const Icon = agentIcon[agent.id]
+                {(Object.keys(state.agents) as AgentId[]).map((id) => {
+                  const agent = state.agents[id]
+                  const Icon = agentIcon[id]
                   return (
-                    <div className="agent" key={agent.id}>
+                    <div className="agent" key={id}>
                       <span className="avatar">
                         <Icon size={16} aria-hidden="true" />
                       </span>
@@ -417,11 +305,11 @@ function App() {
                           <strong>{agent.name}</strong>
                           <span className={`agent-status ${agent.status}`}>
                             <span className="dot" aria-hidden="true" />
-                            {agentStatusLabel[agent.status]}
+                            {agent.status === 'working' ? 'Working' : agent.status === 'blocked' ? 'Blocked' : 'Ready'}
                           </span>
                         </div>
                         <small>{agent.role}</small>
-                        <p>{agent.activity}</p>
+                        <p>{agent.task}</p>
                       </div>
                     </div>
                   )
@@ -432,30 +320,68 @@ function App() {
             <section className="card">
               <div className="card-head">
                 <div>
-                  <h2>Live activity</h2>
-                  <p>What your agents did on their own.</p>
+                  <h2>Needs your OK</h2>
+                  <p>Agents pause here for a human call.</p>
                 </div>
-                <span className="live-dot" aria-hidden="true" />
+                <span className="count-pill">{state.approvals.length}</span>
+              </div>
+              {state.approvals.length === 0 ? (
+                <div className="empty good">
+                  <CheckCircle2 size={24} aria-hidden="true" />
+                  <p>Nothing waiting. {state.settings.autonomy === 'auto' ? 'Full-auto is on — agents proceed on their own.' : 'Agents will queue outreach here for approval.'}</p>
+                </div>
+              ) : (
+                <div className="approval-list">
+                  {state.approvals.slice(0, 6).map((ap) => (
+                    <article className="approval" key={ap.id}>
+                      <div className="approval-body">
+                        <strong>{ap.title}</strong>
+                        <p>{ap.detail}</p>
+                      </div>
+                      <div className="approval-actions">
+                        <button type="button" className="primary-button" onClick={() => actions.approve(ap.id)}>
+                          <CheckCircle2 size={14} aria-hidden="true" />
+                          {ap.action}
+                        </button>
+                        <button type="button" className="text-button" onClick={() => actions.dismiss(ap.id)}>
+                          Pass
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="card">
+              <div className="card-head">
+                <div>
+                  <h2>Live activity</h2>
+                  <p>What the agents did on their own.</p>
+                </div>
+                <Activity size={16} className="muted-icon" aria-hidden="true" />
               </div>
               <div className="activity-list">
+                {state.activity.length === 0 && <p className="activity-empty">Start the agents to see them work.</p>}
                 <AnimatePresence initial={false}>
-                  {activity.map((event) => {
-                    const Icon = agentIcon[event.agentId]
+                  {state.activity.slice(0, 9).map((ev) => {
+                    const Icon = agentIcon[ev.agentId]
                     return (
                       <motion.div
                         className="activity"
-                        key={event.id}
+                        key={ev.id}
                         initial={{ opacity: 0, y: -6 }}
                         animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
                       >
                         <span className="avatar small">
-                          <Icon size={13} aria-hidden="true" />
+                          <Icon size={12} aria-hidden="true" />
                         </span>
                         <p>
-                          <b>{event.agent}</b> {event.text}
+                          <b>{state.agents[ev.agentId].name}</b> {ev.text}
                         </p>
-                        <time>{event.time}</time>
+                        <time>{formatAgo(ev.at, clock)}</time>
                       </motion.div>
                     )
                   })}
@@ -464,31 +390,29 @@ function App() {
             </section>
           </div>
         </div>
+
+        {state.lastError && (
+          <p className="banner">
+            <Sparkles size={14} aria-hidden="true" /> {state.lastError}
+          </p>
+        )}
       </main>
 
       <AnimatePresence>
         {drawer && (
           <Drawer onClose={() => setDrawer(null)}>
-            {drawer === 'demo' && (
-              <DemoPanel demoMessage={demoMessage} setDemoMessage={setDemoMessage} runMissedCallDemo={runMissedCallDemo} />
-            )}
-            {drawer === 'finder' && (
-              <FinderPanel
-                prospectArea={prospectArea}
-                setProspectArea={setProspectArea}
-                prospects={prospects}
-                prospectStatus={prospectStatus}
-                prospectSource={prospectSource}
-                prospectNote={prospectNote}
-                addedProspects={addedProspects}
-                runProspectSearch={runProspectSearch}
-                addProspectToPipeline={addProspectToPipeline}
+            {drawer === 'settings' ? (
+              <SettingsPanel
+                settings={state.settings}
+                update={actions.updateSettings}
+                reset={() => {
+                  actions.reset()
+                  setDrawer(null)
+                }}
               />
-            )}
-            {drawer === 'job' && (
-              <JobPanel lead={selectedLead} bookSelectedLead={bookSelectedLead} sendReviewRequest={sendReviewRequest} />
-            )}
-            {drawer === 'setup' && <SetupPanel />}
+            ) : selected ? (
+              <AccountPanel account={selected} actions={actions} onClose={() => setDrawer(null)} />
+            ) : null}
           </Drawer>
         )}
       </AnimatePresence>
@@ -496,20 +420,65 @@ function App() {
   )
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Kpi({ icon: Icon, label, value, accent }: { icon: LucideIcon; label: string; value: string; accent?: boolean }) {
   return (
-    <div className="metric">
-      <strong>{value}</strong>
-      <span>{label}</span>
+    <div className={accent ? 'kpi accent' : 'kpi'}>
+      <Icon size={15} aria-hidden="true" />
+      <div>
+        <strong>{value}</strong>
+        <span>{label}</span>
+      </div>
     </div>
   )
 }
 
-function StatusChip({ children, tone }: { children: string; tone: 'good' | 'warn' | 'danger' | 'neutral' }) {
-  return <span className={`chip ${tone}`}>{children}</span>
+function Funnel({ m }: { m: ReturnType<typeof metrics> }) {
+  const stages = [
+    { label: 'Found', value: m.discovered, icon: Building2 },
+    { label: 'Qualified', value: m.qualified, icon: Target },
+    { label: 'Ready', value: m.ready, icon: PenLine },
+    { label: 'Contacted', value: m.contacted, icon: Send },
+    { label: 'Won', value: m.won, icon: Trophy },
+  ]
+  return (
+    <section className="funnel">
+      {stages.map((s, i) => {
+        const Icon = s.icon
+        return (
+          <div className="funnel-stage" key={s.label}>
+            <Icon size={15} aria-hidden="true" />
+            <strong>{s.value}</strong>
+            <span>{s.label}</span>
+            {i < stages.length - 1 && <ArrowRight size={14} className="funnel-arrow" aria-hidden="true" />}
+          </div>
+        )
+      })}
+    </section>
+  )
 }
 
-function Drawer({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function EngineEmpty({ running, scanning, onStart }: { running: boolean; scanning: boolean; onStart: () => void }) {
+  if (scanning || running) {
+    return (
+      <div className="empty">
+        <Loader2 size={26} className="spin" aria-hidden="true" />
+        <p>{scanning ? 'The Scout is scanning real map data for commercial accounts…' : 'Agents are working — accounts will appear here as they qualify them.'}</p>
+      </div>
+    )
+  }
+  return (
+    <div className="empty">
+      <Radar size={26} aria-hidden="true" />
+      <p>The engine is paused. Start the agents and they’ll fill this pipeline with real accounts.</p>
+      <button type="button" className="primary-button" onClick={onStart}>
+        <Play size={15} aria-hidden="true" />
+        Start the agents
+      </button>
+    </div>
+  )
+}
+
+function Drawer({ children, onClose }: { children: ReactNode; onClose: () => void }) {
   return (
     <motion.div className="scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
       <motion.aside
@@ -518,7 +487,7 @@ function Drawer({ children, onClose }: { children: React.ReactNode; onClose: () 
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 34 }}
-        onClick={(event) => event.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <button type="button" className="drawer-close" onClick={onClose} aria-label="Close">
           <X size={18} aria-hidden="true" />
@@ -529,334 +498,225 @@ function Drawer({ children, onClose }: { children: React.ReactNode; onClose: () 
   )
 }
 
-function DemoPanel({
-  demoMessage,
-  setDemoMessage,
-  runMissedCallDemo,
+function AccountPanel({
+  account,
+  actions,
+  onClose,
 }: {
-  demoMessage: string
-  setDemoMessage: (value: string) => void
-  runMissedCallDemo: () => void
+  account: Account
+  actions: ReturnType<typeof useEngine>['actions']
+  onClose: () => void
 }) {
-  const intake = classifyIntake(demoMessage)
-  return (
-    <div className="panel">
-      <div className="panel-head">
-        <span className="eyeline">See it work</span>
-        <h2>A customer calls and you're on a job</h2>
-        <p>Type what a customer might text back. Watch your agents read it and get it job-ready — no keys needed.</p>
-      </div>
-
-      <div className="phones">
-        <div className="phone">
-          <PhoneCall size={18} aria-hidden="true" />
-          <strong>Missed call</strong>
-          <span>+1 512 555 0110</span>
-        </div>
-        <div className="phone active">
-          <MessageSquare size={18} aria-hidden="true" />
-          <strong>Riley texts back</strong>
-          <span>{intake.reply}</span>
-        </div>
-      </div>
-
-      <label className="field">
-        <span>Customer's reply</span>
-        <textarea value={demoMessage} onChange={(event) => setDemoMessage(event.target.value)} rows={3} />
-      </label>
-
-      <div className="readout">
-        <div>
-          <span>Job type</span>
-          <strong>{intake.issueType}</strong>
-        </div>
-        <div>
-          <span>Urgency</span>
-          <strong>{intake.urgency.replace('_', ' ')}</strong>
-        </div>
-        <div>
-          <span>Status</span>
-          <strong>{intake.status}</strong>
-        </div>
-        <div>
-          <span>Worth about</span>
-          <strong>{money(intake.estimatedValue)}</strong>
-        </div>
-      </div>
-
-      <button type="button" className="primary-button wide" onClick={runMissedCallDemo}>
-        <Zap size={16} aria-hidden="true" />
-        Turn this into a job
-      </button>
-    </div>
-  )
-}
-
-function FinderPanel({
-  prospectArea,
-  setProspectArea,
-  prospects,
-  prospectStatus,
-  prospectSource,
-  prospectNote,
-  addedProspects,
-  runProspectSearch,
-  addProspectToPipeline,
-}: {
-  prospectArea: string
-  setProspectArea: (value: string) => void
-  prospects: Prospect[]
-  prospectStatus: 'idle' | 'loading' | 'done'
-  prospectSource: 'openstreetmap' | 'demo' | null
-  prospectNote: string | null
-  addedProspects: Record<string, true>
-  runProspectSearch: () => void
-  addProspectToPipeline: (prospect: Prospect) => void
-}) {
-  const loading = prospectStatus === 'loading'
-  const pipelineValue = prospects.reduce((sum, p) => sum + p.estimatedValue, 0)
-
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    if (!loading) runProspectSearch()
-  }
-
-  return (
-    <div className="panel">
-      <div className="panel-head">
-        <span className="eyeline">Pia · your prospecting agent</span>
-        <h2>Find new commercial accounts</h2>
-        <p>
-          Pia scans your area for the businesses that need a locksmith on call — property managers, dealerships, storage,
-          hotels — and drafts the first message.
-        </p>
-      </div>
-
-      <form className="finder-form" onSubmit={submit}>
-        <span className="finder-input">
-          <MapPin size={16} aria-hidden="true" />
-          <input
-            value={prospectArea}
-            onChange={(event) => setProspectArea(event.target.value)}
-            placeholder="Your area, e.g. Austin, TX"
-            aria-label="Service area"
-          />
-        </span>
-        <button type="submit" className="primary-button" disabled={loading}>
-          {loading ? <Loader2 size={16} className="spin" aria-hidden="true" /> : <Search size={16} aria-hidden="true" />}
-          {loading ? 'Scanning…' : 'Find accounts'}
-        </button>
-      </form>
-
-      {prospectStatus === 'done' && (
-        <div className="finder-summary">
-          <div>
-            <strong>{prospects.length}</strong>
-            <span>accounts</span>
-          </div>
-          <div>
-            <strong>{money(pipelineValue)}</strong>
-            <span>per year potential</span>
-          </div>
-          <div>
-            <strong>{prospectSource === 'openstreetmap' ? 'Live map' : 'Sample'}</strong>
-            <span>source</span>
-          </div>
-        </div>
-      )}
-
-      {prospectNote && <p className="note">{prospectNote}</p>}
-
-      {prospectStatus === 'idle' && (
-        <div className="empty">
-          <Radar size={26} aria-hidden="true" />
-          <p>Enter your area and Pia will surface real commercial accounts near you.</p>
-        </div>
-      )}
-
-      {loading && (
-        <div className="empty">
-          <Loader2 size={26} className="spin" aria-hidden="true" />
-          <p>Scanning {prospectArea} for accounts that need a locksmith on call…</p>
-        </div>
-      )}
-
-      {prospectStatus === 'done' && prospects.length === 0 && (
-        <div className="empty">
-          <Search size={26} aria-hidden="true" />
-          <p>No commercial accounts found here. Try a larger city nearby.</p>
-        </div>
-      )}
-
-      {prospectStatus === 'done' && prospects.length > 0 && (
-        <div className="prospect-list">
-          {prospects.map((prospect) => {
-            const Icon = segmentIcon[prospect.segment] ?? Building2
-            const added = Boolean(addedProspects[prospect.id])
-            return (
-              <article className="prospect" key={prospect.id}>
-                <div className="prospect-head">
-                  <span className="avatar">
-                    <Icon size={16} aria-hidden="true" />
-                  </span>
-                  <div className="prospect-id">
-                    <strong>{prospect.name}</strong>
-                    <small>
-                      {prospect.category}
-                      {prospect.address ? ` · ${prospect.address}` : ''}
-                    </small>
-                  </div>
-                  <span className="score" aria-label={`Fit score ${prospect.score} of 100`}>
-                    <TrendingUp size={12} aria-hidden="true" />
-                    {prospect.score}
-                  </span>
-                </div>
-                <div className="prospect-meta">
-                  <span>{prospect.volumeEstimate}</span>
-                  <span>{money(prospect.estimatedValue)}/yr</span>
-                </div>
-                <div className="draft">
-                  <span className="eyeline">Drafted message</span>
-                  <p>{prospect.outreach}</p>
-                </div>
-                <div className="prospect-actions">
-                  <button
-                    type="button"
-                    className={added ? 'ghost-button' : 'primary-button'}
-                    onClick={() => addProspectToPipeline(prospect)}
-                    disabled={added}
-                  >
-                    {added ? <CheckCircle2 size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
-                    {added ? 'Added' : 'Add to jobs'}
-                  </button>
-                  {prospect.website && (
-                    <a className="text-button" href={prospect.website} target="_blank" rel="noreferrer">
-                      <ExternalLink size={14} aria-hidden="true" />
-                      Site
-                    </a>
-                  )}
-                </div>
-              </article>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function JobPanel({
-  lead,
-  bookSelectedLead,
-  sendReviewRequest,
-}: {
-  lead: DemoLead
-  bookSelectedLead: () => void
-  sendReviewRequest: () => void
-}) {
+  const Icon = segmentIcon[account.segment] ?? Building2
   return (
     <div className="panel">
       <div className="panel-head">
         <span className="eyeline">
-          {lead.id} · {lead.source.replace('_', ' ')}
+          {account.category} · {account.territory}
         </span>
-        <div className="job-title">
-          <h2>{lead.customerName}</h2>
-          <StatusChip tone={lead.status === 'booked' ? 'good' : lead.status === 'qualified' ? 'warn' : 'neutral'}>
-            {statusLabel(lead.status)}
-          </StatusChip>
-        </div>
-        <p>{lead.summary}</p>
-      </div>
-
-      <div className="info-grid">
-        <Info icon={Phone} label="Phone" value={lead.customerPhone} />
-        <Info icon={MapPin} label="Where" value={lead.address ? `${lead.address}, ${lead.city}` : lead.city} />
-        <Info icon={Wrench} label="Job" value={lead.issueType} />
-        <Info icon={Clock} label="When" value={lead.preferredTime} />
-      </div>
-
-      <div className="quote-box">
-        <span className="eyeline">Last message</span>
-        <p>{lead.lastMessage}</p>
-      </div>
-
-      <div className="job-actions">
-        <button type="button" className="primary-button" onClick={bookSelectedLead}>
-          <Calendar size={16} aria-hidden="true" />
-          Book the job
-        </button>
-        <button type="button" className="ghost-button" onClick={sendReviewRequest}>
-          <Star size={16} aria-hidden="true" />
-          Ask for a review
-        </button>
-      </div>
-
-      <div className="timeline">
-        {lead.timeline.map((event, index) => (
-          <div className="timeline-row" key={`${event}-${index}`}>
-            <span />
-            <p>{event}</p>
+        <div className="acct-title">
+          <span className="avatar lg">
+            <Icon size={20} aria-hidden="true" />
+          </span>
+          <div>
+            <h2>{account.name}</h2>
+            <div className="acct-title-meta">
+              {account.score > 0 && <span className={`tier ${tierTone[account.tier]}`}>{account.tier}-tier</span>}
+              <span className={`stage ${account.stage}`}>{stageLabel[account.stage]}</span>
+              <span className="score-line">
+                <TrendingUp size={12} aria-hidden="true" /> {account.score || '—'}/100
+              </span>
+            </div>
           </div>
-        ))}
+        </div>
+      </div>
+
+      <div className="acct-value">
+        <div>
+          <span>Est. annual value</span>
+          <strong>${account.acv.toLocaleString()}</strong>
+        </div>
+        <div>
+          <span>Size signal</span>
+          <strong>{account.sizeLabel}</strong>
+        </div>
+      </div>
+
+      <div className="need-box">
+        <span className="eyeline">What they need</span>
+        <p>{account.need || 'Pending qualification…'}</p>
+      </div>
+
+      {account.reasons.length > 0 && (
+        <div className="reasons">
+          <span className="eyeline">Why the agent scored it</span>
+          {account.reasons.map((r, i) => (
+            <div className="reason" key={i}>
+              <CheckCircle2 size={14} aria-hidden="true" />
+              <p>{r}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {account.insight && (
+        <div className="insight">
+          <Brain size={15} aria-hidden="true" />
+          <p>{account.insight}</p>
+        </div>
+      )}
+
+      {account.outreach ? (
+        <div className="draft">
+          <span className="eyeline">
+            Drafted first touch {account.draftedByLLM ? '· by Claude' : ''}
+          </span>
+          <p>{account.outreach}</p>
+        </div>
+      ) : (
+        <div className="draft pending">
+          <Loader2 size={15} className="spin" aria-hidden="true" />
+          <p>The writer hasn’t drafted this one yet.</p>
+        </div>
+      )}
+
+      <div className="contact-row">
+        {account.phone && (
+          <a className="ghost-button" href={`tel:${account.phone}`}>
+            <Phone size={14} aria-hidden="true" /> {account.phone}
+          </a>
+        )}
+        {account.website && (
+          <a className="ghost-button" href={account.website} target="_blank" rel="noreferrer">
+            <Globe size={14} aria-hidden="true" /> Website
+          </a>
+        )}
+        {account.lat && account.lon && (
+          <a className="ghost-button" href={`https://www.openstreetmap.org/?mlat=${account.lat}&mlon=${account.lon}#map=18/${account.lat}/${account.lon}`} target="_blank" rel="noreferrer">
+            <MapPin size={14} aria-hidden="true" /> Map
+          </a>
+        )}
+      </div>
+
+      <div className="panel-actions">
+        {account.stage === 'ready' && (
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => {
+              actions.setStage(account.id, 'contacted')
+              onClose()
+            }}
+          >
+            <Send size={15} aria-hidden="true" /> Mark contacted
+          </button>
+        )}
+        {account.stage !== 'won' && (
+          <button
+            type="button"
+            className="primary-button gold"
+            onClick={() => {
+              actions.setStage(account.id, 'won')
+              onClose()
+            }}
+          >
+            <Trophy size={15} aria-hidden="true" /> Mark won
+          </button>
+        )}
+        <button
+          type="button"
+          className="ghost-button"
+          onClick={() => {
+            actions.setStage(account.id, 'passed')
+            onClose()
+          }}
+        >
+          Pass
+        </button>
       </div>
     </div>
   )
 }
 
-function Info({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
-  return (
-    <div className="info">
-      <Icon size={15} aria-hidden="true" />
-      <div>
-        <span>{label}</span>
-        <strong>{value}</strong>
-      </div>
-    </div>
-  )
-}
-
-function SetupPanel() {
+function SettingsPanel({
+  settings,
+  update,
+  reset,
+}: {
+  settings: ReturnType<typeof useEngine>['state']['settings']
+  update: ReturnType<typeof useEngine>['actions']['updateSettings']
+  reset: () => void
+}) {
   return (
     <div className="panel">
       <div className="panel-head">
         <span className="eyeline">Setup</span>
-        <h2>Go live in four steps</h2>
-        <p>You're in demo mode with sample data. Connect these and your agents start working real calls.</p>
+        <h2>Configure your engine</h2>
+        <p>Set your company, how much rope the agents get, and optional Claude reasoning.</p>
       </div>
 
-      <div className="setup-list">
-        {setupSteps.map((step, index) => (
-          <div className="setup-step" key={step.title}>
-            <span className="step-num">{index + 1}</span>
-            <div>
-              <div className="step-line">
-                <strong>{step.title}</strong>
-                <span className="step-tag">{step.env}</span>
-              </div>
-              <p>{step.detail}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      <label className="field">
+        <span>Company name</span>
+        <input value={settings.companyName} onChange={(e) => update({ companyName: e.target.value })} />
+      </label>
+      <label className="field">
+        <span>Your name (sales leader)</span>
+        <input value={settings.leaderName} onChange={(e) => update({ leaderName: e.target.value })} />
+      </label>
 
-      <div className="guarantee">
-        <ShieldCheck size={18} aria-hidden="true" />
-        <div>
-          <strong>You stay in control</strong>
-          <p>Agents never send a customer message or book a job without the rules you set — and they ask first when it matters.</p>
+      <div className="field">
+        <span>Autonomy</span>
+        <div className="seg wide">
+          <button type="button" className={settings.autonomy === 'ask' ? 'seg-btn on' : 'seg-btn'} onClick={() => update({ autonomy: 'ask' })}>
+            Ask me first
+          </button>
+          <button type="button" className={settings.autonomy === 'auto' ? 'seg-btn on' : 'seg-btn'} onClick={() => update({ autonomy: 'auto' })}>
+            Full auto
+          </button>
         </div>
       </div>
 
-      <div className="setup-foot">
-        <Sparkles size={15} aria-hidden="true" />
-        <span>Most locksmiths are live the same day. We help you connect your number.</span>
+      <div className="llm-card">
+        <div className="llm-head">
+          <div>
+            <strong><Brain size={15} aria-hidden="true" /> Claude reasoning</strong>
+            <small>Let agents write outreach and angles with real AI. Your key stays in this browser.</small>
+          </div>
+          <button
+            type="button"
+            className={settings.llmEnabled ? 'switch on' : 'switch'}
+            onClick={() => update({ llmEnabled: !settings.llmEnabled })}
+            aria-pressed={settings.llmEnabled}
+          >
+            <span />
+          </button>
+        </div>
+        {settings.llmEnabled && (
+          <>
+            <label className="field tight">
+              <span>Anthropic API key</span>
+              <input type="password" value={settings.apiKey} onChange={(e) => update({ apiKey: e.target.value })} placeholder="sk-ant-..." />
+            </label>
+            <label className="field tight">
+              <span>Model</span>
+              <select value={settings.model} onChange={(e) => update({ model: e.target.value })}>
+                <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fast)</option>
+                <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (sharper)</option>
+              </select>
+            </label>
+            <p className="key-note">Stored only in your browser’s localStorage. Without a key, agents use a strong built-in writer.</p>
+          </>
+        )}
       </div>
 
-      <a className="primary-button wide" href="mailto:hello@servicepilot.ai?subject=Set%20up%20my%20locksmith%20front%20desk">
-        <Send size={16} aria-hidden="true" />
-        Get set up
-      </a>
+      <div className="guarantee">
+        <ShieldCheck size={16} aria-hidden="true" />
+        <p>No data leaves your browser except the live map lookups and (if enabled) your own Claude calls.</p>
+      </div>
+
+      <button type="button" className="ghost-button danger wide" onClick={reset}>
+        <RefreshCw size={14} aria-hidden="true" /> Reset pipeline & rescan
+      </button>
     </div>
   )
 }

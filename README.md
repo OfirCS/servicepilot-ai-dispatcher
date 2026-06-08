@@ -1,104 +1,55 @@
 # ServicePilot
 
-**The AI front desk for locksmiths.**
+**The autonomous commercial lead engine for multi-location locksmith companies.**
 
-ServicePilot is an **agentic AI workforce** for small locksmith businesses. A team of AI agents answers missed calls, qualifies the job over text, books the work, finds new commercial accounts, and asks happy customers for reviews — on their own. The owner stays in control and only steps in when an agent asks for the OK.
+Big locksmith companies don't grow by waiting for the phone to ring — they grow by winning standing commercial accounts: property-management portfolios, hospitals, universities, hotels, apartment communities, dealerships, malls. ServicePilot puts a team of AI agents on that job and lets them run.
 
-The whole product is **one calm home screen** built for a busy owner who is usually on a job, not at a desk:
+You give it a territory. The agents go and **find real commercial accounts on the live map, qualify and score every one, estimate its annual value, and draft the first-touch outreach** — continuously, on their own. The sales leader only steps in to approve.
 
-- **Needs your OK** — the human-in-the-loop inbox. Agents do the work and only stop here when a person should decide.
-- **Today's jobs** — every missed call and text the agents turned into a real job, one tap to open.
-- **Your AI team** — five named agents and what each one is doing right now.
-- **Live activity** — the autonomous actions the agents have taken.
-- **Try a missed call** and **Find new accounts** — the demo and the outbound prospector, available as inline actions.
+There is **no seeded data**. Every account in the pipeline is a real place the agents discovered from OpenStreetMap and scored in front of you. State is saved in your browser, so the pipeline the agents build is yours and persists across reloads.
 
-### The AI workforce
+## The AI workforce
 
-| Agent | Job | What it does |
+| Agent | Job | What it does, autonomously |
 |---|---|---|
-| Riley | Answers the phone | Recovers missed calls with an instant text-back |
-| Iris | Qualifies the job | Figures out lockout vs. rekey vs. car key, the location, and urgency |
-| Dex | Books & schedules | Books the job and sets the arrival window |
-| Pia | Finds new accounts | Finds local commercial accounts worth a standing relationship |
-| Remy | Earns 5-star reviews | Asks happy customers for a Google review |
+| **Scout** | Finds accounts | Scans a real territory (OpenStreetMap) for commercial properties that need a locksmith on contract |
+| **Quinn** | Qualifies & scores | Scores each account 0–100 for fit, assigns an A/B/C tier, and estimates annual contract value from real size signals |
+| **Wren** | Writes outreach | Drafts a tailored first-touch message for each high-priority account |
+| **Cole** | Starts outreach | Queues the send for your approval — or fires it himself in full-auto mode |
+| **Ada** | Watches the pipeline | Tracks coverage, pipeline value, and tells you when to add a territory |
 
-## Why locksmiths
+## How it works
 
-A locksmith's calls are high-intent and time-sensitive: someone is locked out of a car or house, a new tenant needs a rekey, a shop lost the only key fob. If no one answers in the first minute, the customer calls the next locksmith. ServicePilot makes sure the first response always happens — instantly, by text — even when the owner is under a dash or drilling a lock.
+1. **Add a territory** (e.g. `Dallas, TX`). The Scout geocodes it and queries OpenStreetMap Overpass for commercial accounts across 15+ segments — property managers, hospitals, universities, apartments, hotels, government, dealerships, storage, malls, banks, warehouses, and more.
+2. **Quinn qualifies** each real account: a fit score, an A/B/C tier (high-value segments like property management and hospitals are floored at A), and an estimated annual contract value derived from real attributes (hotel room counts, building height, bed counts, chain operators).
+3. **Wren drafts** a personalized first touch for the top accounts.
+4. **You approve** (or run full-auto). Approved accounts move to *Contacted*; mark the winners *Won* to track booked annual value.
 
-### Ideal customer
+Everything streams into one command center: live KPIs, a Found → Qualified → Ready → Contacted → Won funnel, the territory map of work, the agent team's live status, a **Needs your OK** approval inbox, and a real-time activity feed.
 
-- Owner-operated or small-crew locksmiths (1–10 techs)
-- Mobile, mostly on the road, missing calls during jobs and after hours
-- Buying leads from Google, Yelp, or paid search and losing the ones they can't answer
+### Autonomy: you hold the leash
 
-The agents generalize cleanly to other emergency home services (garage doors, HVAC, plumbing, appliance repair) — locksmiths are the wedge because the urgency and per-job value are obvious and easy to measure.
+- **Ask first** — agents do all the work but stop at the send. Each outreach lands in the approval inbox.
+- **Full auto** — agents proceed on their own and just log what they did.
 
-### Wedge
+### Optional: real Claude reasoning (bring your own key)
 
-Missed-call recovery. The before/after metric is concrete: missed calls recovered, jobs qualified, jobs booked, revenue saved, and reviews requested.
+Out of the box, the agents use a strong built-in writer and scorer — no key required, works for everyone. Flip on **Claude reasoning** in Settings and paste an Anthropic API key, and Wren writes outreach and per-account angles with a real model (Claude Haiku 4.5 or Sonnet 4.6). The key is stored only in your browser's `localStorage` and is sent directly from your browser to Anthropic — it never touches a server.
 
-### Lead finder (outbound)
+## Why this is genuinely agentic
 
-Missed-call recovery is the inbound side. The Lead Finder is the outbound side: **Pia** goes and finds new accounts for the owner. Open **Find new accounts**, type a service area, and she:
-
-1. Geocodes the area with OpenStreetMap Nominatim.
-2. Scans OpenStreetMap Overpass for the local businesses that need a locksmith on call — property managers, car dealerships, self-storage, hotels, real estate offices, and auto shops.
-3. Scores each account for fit, estimates the yearly value, and drafts a ready-to-send first message.
-4. Lets the owner push any account into the same job queue with one tap.
-
-This uses **real, free, keyless data** (OpenStreetMap), so it works in the browser during `npm run dev` and on Netlify without configuration. If the live source is ever unreachable, it falls back to a deterministic sample set so the demo never breaks.
-
-### Revenue model
-
-- $299/month per location for missed-call recovery and review automation
-- Optional usage pass-through for Twilio SMS/calls
-- Later: dispatch automation, calendar sync, and CRM integrations
-
-One recovered emergency lockout or rekey can cover much of the monthly price; recovered car-key and commercial jobs and compounding reviews do the rest.
-
-## Architecture
-
-```text
-Customer call / SMS
-        ↓
-Twilio phone number
-        ↓
-Netlify Functions
-        ↓
-AI intake classifier
-        ↓
-Supabase Postgres
-        ↓
-Owner gets a job summary + one-tap actions
-        ↓
-Booking + review follow-up
-        ↓
-Home-screen metrics
-```
+- **Real tools, real data** — agents call live OpenStreetMap (Nominatim + Overpass) and, optionally, the Anthropic API. Nothing is mocked or seeded.
+- **An autonomous loop** — a tick-based orchestrator decides what to do next (scan, qualify, draft, advance) based on pipeline state, not a script.
+- **Human-in-the-loop** — agents escalate exactly the decisions a person should make and act on everything else.
+- **Stateful** — the pipeline persists in the browser and grows the more territories you give it.
 
 ## Tech stack
 
-- Frontend: React, TypeScript, Vite (single-screen owner dashboard, framer-motion drawers)
-- Hosting/API: Netlify + Netlify Functions
-- Database: Supabase Postgres
-- Phone/SMS: Twilio
-- AI: deterministic demo classifier now, OpenAI-ready via `OPENAI_API_KEY`
-- Lead sourcing: OpenStreetMap (Nominatim geocoding + Overpass), free and keyless
-
-## API routes
-
-| Method | Route | Purpose |
-|---|---|---|
-| `POST` | `/api/twilio/inbound-call` | Forward inbound calls and attach a no-answer callback |
-| `POST` | `/api/twilio/call-status` | Trigger missed-call recovery SMS |
-| `POST` | `/api/twilio/inbound-sms` | Classify customer replies and return Twilio XML |
-| `POST` | `/api/ai/intake` | Classify the job, urgency, missing fields, and reply |
-| `POST` | `/api/marketing/prospect` | Find local commercial accounts as outbound leads |
-| `POST` | `/api/calendar/book` | Create a scheduled job |
-| `POST` | `/api/followups/review` | Send a review request SMS |
-| `GET` | `/api/dashboard/metrics` | Return home-screen metrics |
-| `GET/POST` | `/api/leads` | Demo/Supabase lead access |
+- React + TypeScript + Vite, framer-motion
+- Live data: OpenStreetMap Nominatim (geocoding) + Overpass (business search) — free, keyless, CORS-enabled
+- Optional AI: Anthropic Messages API, called directly from the browser (bring-your-own-key)
+- State: browser `localStorage` (no backend required for the engine)
+- Deploy: static site (GitHub Pages / Netlify). The repo also ships Netlify Functions for a future server-backed pilot.
 
 ## Local development
 
@@ -107,7 +58,7 @@ npm install
 npm run dev
 ```
 
-Run checks:
+Checks:
 
 ```bash
 npm run build
@@ -115,46 +66,19 @@ npm run lint
 npm run typecheck:functions
 ```
 
-## Environment variables
+## Using it
 
-Copy `.env.example` and set values locally or in Netlify.
-
-Required for production:
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `TWILIO_ACCOUNT_SID`
-- `TWILIO_AUTH_TOKEN`
-- `TWILIO_MESSAGING_SERVICE_SID` or `TWILIO_FROM_NUMBER`
-- `OWNER_PHONE_NUMBER`
-- `FORWARD_TO_NUMBER`
-
-Optional:
-- `OPENAI_API_KEY`
-- `GOOGLE_CALENDAR_ID`
-
-Keep `SERVICEPILOT_DEMO_MODE=true` until real SMS sending is intended.
-
-## Supabase setup
-
-Run the migration in `supabase/migrations/202606030001_servicepilot_mvp.sql`.
-
-Tables: `companies`, `leads`, `messages`, `jobs`, `followups`, `integration_events`. All public tables have RLS enabled. Server writes use the Supabase service role key from Netlify Functions only — never expose it in the browser.
-
-## Twilio setup
-
-- Voice webhook: `https://YOUR_SITE.netlify.app/api/twilio/inbound-call`
-- Messaging webhook: `https://YOUR_SITE.netlify.app/api/twilio/inbound-sms`
-
-The voice route forwards calls to `FORWARD_TO_NUMBER`. If the call is not answered, Twilio posts to `/api/twilio/call-status`, which sends the missed-call recovery SMS.
+1. Open the app and click **Start agents** (or just add a territory — that starts them).
+2. Watch the Scout populate the pipeline with real accounts and Quinn score them.
+3. Open any account to see its value, why it scored that way, and the drafted outreach.
+4. Approve outreach in **Needs your OK**, or switch to **Full auto**.
+5. Add more territories to expand coverage. **Reset** (in Settings) clears the pipeline and rescans.
 
 ## Deployment
 
-This repo includes `netlify.toml`.
+Static build — `npm run build` outputs `dist/`. This repo auto-deploys `main` to GitHub Pages via `.github/workflows/deploy-pages.yml`. `netlify.toml` is included for Netlify (and its serverless functions) if you want a server-backed pilot later.
 
-- Build command: `npm run build`
-- Publish directory: `dist`
-- Functions directory: `netlify/functions`
+## Notes
 
-## Current status
-
-A functional MVP with production-shaped integration boundaries. It runs locally in demo mode without any API keys, and is ready to connect to Supabase, Twilio, and Netlify environment variables for a real locksmith pilot.
+- The engine works fully without any API keys. If the live map is briefly unreachable, the Scout falls back to a clearly-labeled sample so the demo never looks broken — every other path is real data.
+- Calling Anthropic directly from the browser exposes your key to client-side code; use a scoped key and rotate it. For production, proxy AI calls through the included Netlify Functions instead.
