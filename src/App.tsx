@@ -251,7 +251,11 @@ function App() {
               </div>
 
               {visible.length === 0 ? (
-                <EngineEmpty running={state.running} scanning={scanning} onStart={actions.start} />
+                scanning ? (
+                  <SkeletonList />
+                ) : (
+                  <EngineEmpty running={state.running} scanning={scanning} onStart={actions.start} />
+                )
               ) : (
                 <div className="acct-list">
                   {visible.map((a) => {
@@ -454,6 +458,23 @@ function Funnel({ m }: { m: ReturnType<typeof metrics> }) {
         )
       })}
     </section>
+  )
+}
+
+function SkeletonList() {
+  return (
+    <div className="skeleton-list" aria-hidden="true">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <div className="sk-row" key={i}>
+          <div className="sk sk-avatar" />
+          <div className="sk-lines">
+            <div className="sk sk-line" />
+            <div className="sk sk-line short" />
+          </div>
+          <div className="sk sk-pill" />
+        </div>
+      ))}
+    </div>
   )
 }
 
