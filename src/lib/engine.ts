@@ -176,6 +176,10 @@ export function useEngine() {
             const existing = new Set(s.accounts.map((a) => a.id))
             const fresh = result.accounts
               .filter((a) => !existing.has(a.id))
+              // Curate to the strongest accounts so the pipeline settles into a
+              // clean, high-value set instead of churning through everything.
+              .sort((a, b) => b.sizeScore - a.sizeScore)
+              .slice(0, 40)
               .map<Account>((raw) => ({
                 ...raw,
                 stage: 'discovered',
@@ -300,7 +304,7 @@ export function useEngine() {
       // 2) Qualify a batch of freshly discovered accounts
       const discovered = s.accounts.filter((a) => a.stage === 'discovered')
       if (discovered.length) {
-        const batch = discovered.slice(0, 4)
+        const batch = discovered.slice(0, 12)
         update((prev) => {
           const ids = new Set(batch.map((b) => b.id))
           let aWins = 0
@@ -326,21 +330,28 @@ export function useEngine() {
         update((prev) => setAgent(prev, 'qualifier', { status: 'idle', task: 'All discovered accounts scored.' }))
       }
 
-      // 3) Draft outreach for the highest-priority qualified account
+      // 3) Draft outreach for the highest-priority qualified account. Only
+      // chase A/B tier, and in "ask" mode don't flood the inbox — keep at most
+      // a handful of approvals waiting so the screen stays calm.
       if (!draftingRef.current) {
-        const candidate = s.accounts
-          .filter((a) => a.stage === 'qualified' && !a.outreach)
-          .sort((a, b) => b.score - a.score)[0]
-        if (candidate) {
-          runDraft(candidate)
-          return
+        const inboxFull = s.settings.autonomy === 'ask' && s.approvals.length >= 5
+        if (!inboxFull) {
+          const candidate = s.accounts
+            .filter((a) => a.stage === 'qualified' && !a.outreach && (a.tier === 'A' || a.tier === 'B'))
+            .sort((a, b) => b.score - a.score)[0]
+          if (candidate) {
+            runDraft(candidate)
+            return
+          }
         }
       }
 
       // 4) Idle: occasional analyst pulse
       const m = metrics(s)
       const allCovered = s.territories.every((t) => t.status === 'covered' || t.status === 'error')
-      const nothingPending = !s.accounts.some((a) => a.stage === 'discovered' || (a.stage === 'qualified' && !a.outreach))
+      const nothingPending = !s.accounts.some(
+        (a) => a.stage === 'discovered' || (a.stage === 'qualified' && !a.outreach && (a.tier === 'A' || a.tier === 'B')),
+      )
       if (allCovered && nothingPending && !scanningRef.current && !draftingRef.current) {
         const last = s.activity[0]
         const quietFor = !last || now() - last.at > 12000
